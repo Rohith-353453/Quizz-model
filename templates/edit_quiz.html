@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FLUX - Edit Quiz</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 900px; 
+            margin: 50px auto; 
+            padding: 20px; 
+            background-color: #f4f4f4; 
+        }
+        header { 
+            text-align: center; 
+            background: #007bff; 
+            color: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 30px; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+        .back-link {
+            color: white;
+            font-weight: bold;
+            text-decoration: none;
+            font-size: 1em;
+        }
+        .back-link:hover {
+            color: #0056b3;
+        }
+        section { 
+            background: white; 
+            margin: 20px 0; 
+            border-radius: 8px; 
+            padding: 20px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+        }
+        input, textarea, select, button { 
+            padding: 10px; 
+            margin: 5px 0; 
+            width: calc(100% - 22px); 
+            box-sizing: border-box; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+        }
+        button { 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            cursor: pointer; 
+            font-weight: bold; 
+        }
+        button:hover { background: #0056b3; }
+        .question-div { 
+            border: 1px solid #ddd; 
+            margin: 15px 0; 
+            padding: 15px; 
+            border-radius: 4px; 
+            background: #fafafa; 
+            position: relative; 
+        }
+        .options-group { 
+            margin-left: 20px; 
+            display: none; 
+        }
+        .options-group input { width: calc(100% - 22px); }
+        .remove-btn { 
+            background: #dc3545; 
+            color: white; 
+            padding: 5px 10px; 
+            font-size: 12px; 
+            position: absolute; 
+            top: 10px; 
+            right: 10px; 
+        }
+        .remove-btn:hover { background: #c82333; }
+        .add-btn { 
+            background: #28a745; 
+            color: white; 
+            padding: 10px 20px; 
+            margin: 10px 0; 
+        }
+        .flash { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 4px; 
+            background: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+        }
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="{{ url_for('quizzes') }}" class="back-link"><i class="fas fa-arrow-left"></i> Back to Quizzes</a>
+        <h1>FLUX</h1>
+        <div style="width: 30px;"></div>
+    </header>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="flash">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <section>
+        <h2>Edit Quiz: {{ quiz.title }}</h2>
+        <form id="quizForm" method="POST" action="{{ url_for('edit_quiz', quiz_id=quiz._id|string) }}">
+            <input type="text" name="title" value="{{ quiz.title }}" placeholder="Quiz Title" required>
+            <input type="text" name="subject" value="{{ quiz.subject }}" placeholder="Subject" required>
+            <input type="number" name="duration" min="1" value="{{ quiz.duration }}" placeholder="Duration (minutes)" required>
+            
+            <h3>Questions (Edit Existing or Add/Remove as Needed)</h3>
+            <div id="questions-container">
+                {% set qnum = namespace(value=0) %}
+                {% for question in quiz.questions %}
+                    {% set qnum.value = qnum.value + 1 %}
+                    <div class="question-div" data-qnum="{{ qnum.value }}">
+                        <button type="button" class="remove-btn" onclick="removeQuestion('{{ qnum.value }}')">Remove</button>
+                        <h4>Question {{ qnum.value }}</h4>
+                        <select name="q_type_{{ qnum.value }}" onchange="toggleOptions('{{ qnum.value }}')">
+                            <option value="mcq" {% if question.type == 'mcq' %}selected{% endif %}>Multiple Choice (MCQ)</option>
+                            <option value="tf" {% if question.type == 'tf' %}selected{% endif %}>True/False</option>
+                            <option value="short" {% if question.type == 'short' %}selected{% endif %}>Short Answer</option>
+                        </select><br>
+                        <textarea name="q_text_{{ qnum.value }}" placeholder="Enter question text here" rows="2" required>{{ question.text }}</textarea><br>
+                        <input type="text" name="q_answer_{{ qnum.value }}" value="{{ question.answer }}" placeholder="Correct answer" required><br>
+                        <input type="number" name="q_points_{{ qnum.value }}" value="{{ question.points }}" min="1" max="10" placeholder="Points"><br>
+                        
+                        <div id="options_{{ qnum.value }}" class="options-group" {% if question.type == 'mcq' %}style="display: block;"{% endif %}>
+                            <label>Options for MCQ (at least 2):</label><br>
+                            {% for opt in question.options if question.type == 'mcq' %}
+                                <input type="text" name="option_{{ qnum.value }}_{{ loop.index }}" value="{{ opt }}" placeholder="Option {{ loop.index }}"><br>
+                            {% endfor %}
+                            {% for i in range((question.options|length if question.type == 'mcq' else 0), 4) %}
+                                <input type="text" name="option_{{ qnum.value }}_{{ i + 1 }}" placeholder="Option {{ i + 1 }}"><br>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            
+            <button type="button" class="add-btn" onclick="addQuestion('{{ qnum.value }}')">Add Question</button>
+            <p><small>Max 50 questions. Only filled questions will be saved.</small></p>
+            
+            <button type="submit">Update Quiz</button>
+        </form>
+    </section>
+
+    <footer>
+        &copy; Reserved to Rohithdega
+    </footer>
+
+    <script>
+        let questionCount = Number("{{ qnum.value or 0 }}");  // Start with existing count
+        
+        function toggleOptions(qNum) {
+            const type = document.querySelector(`select[name="q_type_${qNum}"]`).value;
+            const optionsDiv = document.getElementById(`options_${qNum}`);
+            if (type === 'mcq') {
+                optionsDiv.style.display = 'block';
+            } else {
+                optionsDiv.style.display = 'none';
+            }
+        }
+        
+        function addQuestion(startNum) {
+            if (questionCount >= 50) {
+                alert('Max 50 questions reached!');
+                return;
+            }
+            questionCount++;
+            const container = document.getElementById('questions-container');
+            const newDiv = document.createElement('div');
+            newDiv.className = 'question-div';
+            newDiv.dataset.qnum = questionCount;
+            newDiv.innerHTML = `
+                <button type="button" class="remove-btn" onclick="removeQuestion(${questionCount})">Remove</button>
+                <h4>Question ${questionCount}</h4>
+                <select name="q_type_${questionCount}" onchange="toggleOptions(${questionCount})">
+                    <option value="mcq">Multiple Choice (MCQ)</option>
+                    <option value="tf">True/False</option>
+                    <option value="short">Short Answer</option>
+                </select><br>
+                <textarea name="q_text_${questionCount}" placeholder="Enter question text here" rows="2" required></textarea><br>
+                <input type="text" name="q_answer_${questionCount}" placeholder="Correct answer" required><br>
+                <input type="number" name="q_points_${questionCount}" value="1" min="1" max="10" placeholder="Points"><br>
+                
+                <div id="options_${questionCount}" class="options-group">
+                    <label>Options for MCQ (at least 2):</label><br>
+                    <input type="text" name="option_${questionCount}_1" placeholder="Option 1"><br>
+                    <input type="text" name="option_${questionCount}_2" placeholder="Option 2"><br>
+                    <input type="text" name="option_${questionCount}_3" placeholder="Option 3"><br>
+                    <input type="text" name="option_${questionCount}_4" placeholder="Option 4">
+                </div>
+            `;
+            container.appendChild(newDiv);
+            toggleOptions(questionCount);  // Init for new
+        }
+        
+        function removeQuestion(qNum) {
+            if (questionCount <= 1) {
+                alert('At least one question required!');
+                return;
+            }
+            const div = document.querySelector(`[data-qnum="${qNum}"]`);
+            if (div) {
+                div.remove();
+            }
+            questionCount--;
+            // Note: Renumbering is optional; backend loops by form keys
+        }
+
+        // Init for existing questions
+        for (let i = 1; i <= questionCount; i++) {
+            toggleOptions(i);
+        }
+    </script>
+</body>
+</html>

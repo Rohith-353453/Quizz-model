@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FLUX - Quizzes</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 900px; 
+            margin: 50px auto; 
+            padding: 20px; 
+            background-color: #f4f4f4; 
+        }
+        header { 
+            text-align: center; 
+            background: #007bff; 
+            color: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 30px; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+        .back-link, .logout-link {
+            color: white;
+            font-weight: bold;
+            text-decoration: none;
+            font-size: 1em;
+        }
+        .back-link:hover, .logout-link:hover {
+            color: #0056b3;
+        }
+        .nav-links {
+            background: white;
+            margin: 20px 0;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+            position: relative;
+        }
+        .welcome-text {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #007bff;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.75em;
+            font-weight: normal;
+            opacity: 0.8;
+        }
+        .nav-links a {
+            display: inline-block;
+            margin: 0 15px;
+            color: #007bff;
+            text-decoration: none;
+            font-weight: bold;
+            transition: color 0.3s ease;
+        }
+        .nav-links a:hover {
+            color: #0056b3;
+        }
+        .nav-links i {
+            font-size: 1.2em;
+            margin-right: 5px;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+        .nav-links a:hover i {
+            opacity: 1;
+        }
+        section { 
+            background: white; 
+            margin: 20px 0; 
+            border-radius: 8px; 
+            padding: 20px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+        }
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #666;
+            font-size: 0.9em;
+        }
+        .quiz-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border: 1px solid #ddd;
+            margin: 10px 0;
+            border-radius: 4px;
+            background: #fafafa;
+        }
+        .quiz-info {
+            flex-grow: 1;
+        }
+        .quiz-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+        .quiz-details {
+            color: #666;
+            font-size: 12px;
+        }
+        .quiz-actions {
+            display: flex;
+            gap: 5px;
+        }
+        .btn-small {
+            background: #007bff;
+            color: white;
+            padding: 5px 10px;
+            text-decoration: none;
+            border-radius: 3px;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+        }
+        .btn-small:hover {
+            background: #0056b3;
+        }
+        .btn-danger-small {
+            background: #dc3545;
+        }
+        .btn-danger-small:hover {
+            background: #c82333;
+        }
+        .flash { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 4px; 
+            background: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+        }
+        h3 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .no-quizzes {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 40px 20px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        {% if user.role == 'master' %}
+            <a href="{{ url_for('dashboard') }}" class="back-link"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+        {% else %}
+            <a href="{{ url_for('dashboard') }}" class="back-link"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+        {% endif %}
+        <h1>FLUX</h1>
+        <a href="{{ url_for('logout') }}" class="logout-link"><i class="fas fa-sign-out-alt"></i></a>
+    </header>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="flash">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="nav-links">
+        {% if user.role == 'master' %}
+            <div class="welcome-text">My Quizzes</div>
+            <a href="{{ url_for('dashboard') }}"><i class="fas fa-home"></i> Dashboard</a>
+            <a href="{{ url_for('my_results') }}"><i class="fas fa-chart-bar"></i> Analytics</a>
+            <a href="{{ url_for('leaderboard') }}"><i class="fas fa-trophy"></i> Leaderboard</a>
+        {% else %}
+            <div class="welcome-text">Available Quizzes</div>
+            <a href="{{ url_for('dashboard') }}"><i class="fas fa-home"></i> Dashboard</a>
+            <a href="{{ url_for('my_results') }}"><i class="fas fa-chart-line"></i> My Results</a>
+            <a href="{{ url_for('leaderboard') }}"><i class="fas fa-trophy"></i> Leaderboard</a>
+        {% endif %}
+    </div>
+
+    <section>
+        {% if user.role == 'master' %}
+            <h3>My Quizzes</h3>
+            {% if quizzes %}
+                {% for quiz in quizzes %}
+                    <div class="quiz-card">
+                        <div class="quiz-info">
+                            <div class="quiz-title">{{ quiz.title }}</div>
+                            <div class="quiz-details">{{ quiz.subject }} - {{ quiz.duration }} mins - Created: {{ quiz.date.strftime('%Y-%m-%d') if quiz.date else 'Unknown' }}</div>
+                        </div>
+                        <div class="quiz-actions">
+                            <a href="{{ url_for('edit_quiz', quiz_id=quiz._id|string) }}" class="btn-small">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                            <a href="#" onclick="deleteQuiz('{{ quiz._id|string }}')" class="btn-danger-small btn-small">
+                                <i class="fas fa-trash"></i> Delete
+                            </a>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-quizzes">No quizzes created yet. <a href="{{ url_for('dashboard') }}">Create one now!</a></div>
+            {% endif %}
+        {% else %}
+            <h3>Available Quizzes</h3>
+            {% if quizzes %}
+                {% for quiz in quizzes %}
+                    <div class="quiz-card">
+                        <div class="quiz-info">
+                            <div class="quiz-title">{{ quiz.title }}</div>
+                            <div class="quiz-details">{{ quiz.subject }} - {{ quiz.duration }} mins - Created: {{ quiz.date.strftime('%Y-%m-%d') if quiz.date else 'Unknown' }}</div>
+                        </div>
+                        <div class="quiz-actions">
+                            <a href="{{ url_for('take_quiz', quiz_id=quiz._id|string) }}" class="btn-small">
+                                <i class="fas fa-play"></i> Take Quiz
+                            </a>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-quizzes">No quizzes available yet.</div>
+            {% endif %}
+        {% endif %}
+    </section>
+
+    <footer>
+        &copy; Reserved to Rohithdega
+    </footer>
+
+    <script>
+        function deleteQuiz(quizId) {
+            if (confirm('Are you sure you want to delete this quiz?')) {
+                window.location.href = `/delete_quiz/${quizId}`;
+            }
+        }
+    </script>
+</body>
+</html>

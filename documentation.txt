@@ -1,0 +1,25 @@
+I need to develop a application Named "FLUX" . The application is a quizzing and exam platform . An Online Quiz/Exam Platform with MongoDB as backend DB.
+with the following requirements 
+Must contain dashboard with the following requirements.
+1. Authentication
+Register/Login.
+Role-based access (master and students).
+2. Quiz Management (Master)
+Create quiz (title, subject, duration).
+Add questions (MCQ, True/False, Short Answer).
+Edit/Delete quizzes.
+3.Exam Taking (Student)
+Browse quizzes assigned/available.
+Attempt quiz with timer.
+Submit answers.
+Results & Reports
+Auto-check MCQs/TFs.
+Manual/auto evaluation for short answers.
+Show scorecard + correct answers.
+4.Leaderboard & Analytics
+Leaderboard for top students.	
+Analytics for teachers (quiz performance).
+NOTE:
+1. Master can see the analytics of the quiz which performed by all students with their unique user id  in his dashboard.
+2. student can see his quiz analytics in his dash board.
+3. Master can give input max of 50 questions and 500 students can access it at a time.

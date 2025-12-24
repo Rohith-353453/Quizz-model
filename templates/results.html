@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Quiz Results: {{ quiz_title or 'Untitled' }}</title>
+    <style>
+        body { font-family: Arial; max-width: 700px; margin: 50px auto; padding: 20px; background: #f4f4f4; }
+        .results-header { text-align: center; background: #28a745; color: white; padding: 20px; border-radius: 8px; }
+        .score-summary { font-size: 24px; font-weight: bold; margin: 10px 0; }
+        .question-result { border: 1px solid #ddd; margin: 15px 0; padding: 15px; border-radius: 4px; background: #fff; }
+        .correct { background: #d4edda; color: #155724; }
+        .wrong { background: #f8d7da; color: #721c24; }
+        .question-result h4 { margin-top: 0; }
+        .your-answer { font-style: italic; color: #666; }
+        a { background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block; margin-top: 20px; }
+        a:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="results-header">
+        <h1>Quiz Completed!</h1>
+        <p>{{ quiz_title or 'Untitled Quiz' }}</p>
+        <div class="score-summary">Score: {{ score }} / {{ total }} ({{ percentage | round(1) }}%)</div>
+    </div>
+
+    <h3>Detailed Results</h3>
+    {% for ans in answers %}
+        <div class="question-result {{ 'correct' if ans.correct else 'wrong' }}">
+            <h4>{{ ans.question }} ({{ ans.type | upper }})</h4>
+            <p class="your-answer">Your answer: {{ ans.answer or 'No answer' }}</p>
+            <p>{% if ans.correct %}Correct!{% else %}Incorrect.{% endif %}</p>
+        </div>
+    {% endfor %}
+
+    <a href="{{ url_for('list_quizzes') }}">Take Another Quiz</a>
+    <a href="{{ url_for('my_results') }}">View All Results</a>
+</body>
+</html>
