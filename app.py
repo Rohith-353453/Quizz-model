@@ -58,7 +58,7 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    db = get_db()
+db = get_db()
 users = db['users']
 quizzes = db['quizzes']
 results = db['results']
@@ -76,7 +76,7 @@ results = db['results']
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    db = get_db()
+db = get_db()
 users = db['users']
 quizzes = db['quizzes']
 results = db['results']
@@ -104,7 +104,7 @@ def dashboard():
 @app.route('/create_quiz', methods=['POST'])
 @login_required
 def create_quiz():
-    db = get_db()
+db = get_db()
 users = db['users']
 quizzes = db['quizzes']
 results = db['results']
@@ -181,7 +181,7 @@ results = db['results']
 @app.route('/quizzes')
 @login_required
 def list_quizzes():
-    db = get_db()
+db = get_db()
 users = db['users']
 quizzes = db['quizzes']
 results = db['results']
@@ -194,7 +194,7 @@ results = db['results']
 @app.route('/take_quiz/<quiz_id>')
 @login_required
 def take_quiz(quiz_id):
-    db = get_db()
+db = get_db()
 users = db['users']
 quizzes = db['quizzes']
 results = db['results']
@@ -212,7 +212,7 @@ results = db['results']
 @app.route('/submit_quiz/<quiz_id>', methods=['POST'])
 @login_required
 def submit_quiz(quiz_id):
-    db = get_db()
+db = get_db()
 users = db['users']
 quizzes = db['quizzes']
 results = db['results']
@@ -267,7 +267,7 @@ results = db['results']
 @app.route('/my_results')
 @login_required
 def my_results():
-    db = get_db()
+db = get_db()
 users = db['users']
 quizzes = db['quizzes']
 results = db['results']
@@ -280,7 +280,7 @@ results = db['results']
 @app.route('/leaderboard')
 @login_required
 def leaderboard():
-    db = get_db()
+db = get_db()
 users = db['users']
 quizzes = db['quizzes']
 results = db['results']
@@ -302,7 +302,7 @@ results = db['results']
 @app.route('/edit_quiz/<quiz_id>', methods=['GET', 'POST'])
 @login_required
 def edit_quiz(quiz_id):
-    db = get_db()
+db = get_db()
 users = db['users']
 quizzes = db['quizzes']
 results = db['results']
@@ -388,7 +388,7 @@ results = db['results']
 @app.route('/delete_quiz/<quiz_id>', methods=['GET', 'POST'])  # Accept GET for your current JS
 @login_required
 def delete_quiz(quiz_id):
-    db = get_db()
+db = get_db()
 users = db['users']
 quizzes = db['quizzes']
 results = db['results']
