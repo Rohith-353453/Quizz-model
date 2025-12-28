@@ -13,7 +13,7 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)  # Secure random key for sessions
 
-app.config['MONGO_URI'] = os.getenv('MONGO_URI')
+app.config['MONGO_URI'] = os.getenv('MONGODB_URI')
 
 # MongoDB Connection
 client = MongoClient(
