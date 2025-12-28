@@ -16,18 +16,23 @@ app.secret_key = secrets.token_hex(32)  # Secure random key for sessions
 app.config['MONGO_URI'] = os.getenv('MONGODB_URI')
 
 # MongoDB Connection
-client = MongoClient(
-    app.config['MONGO_URI'],
-    serverSelectionTimeoutMS=30000,  # 30s to find server
-    connectTimeoutMS=30000,  # 30s to connect
-    maxPoolSize=50,  # Pool for concurrent users
-    retryWrites=True  # Auto-retry writes
-)
-db = client['flux_db']
-users = db['users']
-quizzes = db['quizzes']
-results = db['results']
+# Lazy MongoDB Connection (safe for Render)
+client = None
+db = None
 
+def get_db():
+    global client, db
+    if client is None:
+        mongo_uri = app.config['MONGO_URI']
+        client = MongoClient(
+            mongo_uri,
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=30000,
+            maxPoolSize=50,
+            retryWrites=True
+        )
+        db = client['flux_db']
+    return db
 # Flask-Login Setup
 login_manager = LoginManager()
 login_manager.init_app(app)
