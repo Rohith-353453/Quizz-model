@@ -11,10 +11,9 @@ import secrets
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(32)  # Secure random key for sessions
+app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))  # Secure random key for sessions
 
-app.config['MONGO_URI'] = os.getenv('MONGODB_URI')
-
+app.config['MONGO_URI'] = os.getenv('MONGO_URI')
 # MongoDB Connection
 client = MongoClient(
     app.config['MONGO_URI'],
@@ -367,4 +366,4 @@ def logout():
     return redirect(url_for('login'))
 
 if __name__ == '__main__':
-    app.run(debug=True, host='127.0.0.1', port=5000, use_reloader=False)
+    app.run(debug=False, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
