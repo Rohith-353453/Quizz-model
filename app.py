@@ -15,18 +15,23 @@ app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))  # Secure random
 
 app.config['MONGO_URI'] = os.getenv('MONGO_URI')
 # MongoDB Connection
-client = MongoClient(
-    app.config['MONGO_URI'],
-    serverSelectionTimeoutMS=30000,  # 30s to find server
-    connectTimeoutMS=30000,  # 30s to connect
-    maxPoolSize=50,  # Pool for concurrent users
-    retryWrites=True  # Auto-retry writes
-)
-db = client['flux_db']
-users = db['users']
-quizzes = db['quizzes']
-results = db['results']
+# Lazy MongoDB Connection (safe for Render)
+client = None
+db = None
 
+def get_db():
+    global client, db
+    if client is None:
+        mongo_uri = app.config['MONGO_URI']
+        client = MongoClient(
+            mongo_uri,
+            serverSelectionTimeoutMS=30000,
+            connectTimeoutMS=30000,
+            maxPoolSize=50,
+            retryWrites=True
+        )
+        db = client['flux_db']
+    return db
 # Flask-Login Setup
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -52,6 +57,10 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+db = get_db()
+users = db['users']
+quizzes = db['quizzes']
+results = db['results']
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
@@ -66,6 +75,10 @@ def login():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+db = get_db()
+users = db['users']
+quizzes = db['quizzes']
+results = db['results']
     if request.method == 'POST':
         username = request.form['username']
         email = request.form['email']
@@ -90,6 +103,10 @@ def dashboard():
 @app.route('/create_quiz', methods=['POST'])
 @login_required
 def create_quiz():
+db = get_db()
+users = db['users']
+quizzes = db['quizzes']
+results = db['results']
     if current_user.role != 'master':
         flash('Access denied')
         return redirect(url_for('dashboard'))
@@ -163,6 +180,10 @@ def create_quiz():
 @app.route('/quizzes')
 @login_required
 def list_quizzes():
+db = get_db()
+users = db['users']
+quizzes = db['quizzes']
+results = db['results']
     if current_user.role == 'master':
         quiz_list = list(quizzes.find({'createdBy': ObjectId(current_user.id)}).sort('date', -1))
     else:
@@ -172,6 +193,10 @@ def list_quizzes():
 @app.route('/take_quiz/<quiz_id>')
 @login_required
 def take_quiz(quiz_id):
+db = get_db()
+users = db['users']
+quizzes = db['quizzes']
+results = db['results']
     if current_user.role != 'student':
         flash('Access denied')
         return redirect(url_for('dashboard'))
@@ -186,6 +211,10 @@ def take_quiz(quiz_id):
 @app.route('/submit_quiz/<quiz_id>', methods=['POST'])
 @login_required
 def submit_quiz(quiz_id):
+db = get_db()
+users = db['users']
+quizzes = db['quizzes']
+results = db['results']
     if current_user.role != 'student':
         return redirect(url_for('dashboard'))
     quiz = quizzes.find_one({'_id': ObjectId(quiz_id)})
@@ -237,6 +266,10 @@ def submit_quiz(quiz_id):
 @app.route('/my_results')
 @login_required
 def my_results():
+db = get_db()
+users = db['users']
+quizzes = db['quizzes']
+results = db['results']
     if current_user.role == 'student':
         res_list = list(results.find({'user': ObjectId(current_user.id)}).sort('date', -1))
     else:
@@ -246,6 +279,10 @@ def my_results():
 @app.route('/leaderboard')
 @login_required
 def leaderboard():
+db = get_db()
+users = db['users']
+quizzes = db['quizzes']
+results = db['results']
     pipeline = [
         {'$group': {'_id': '$user', 'totalScore': {'$sum': '$score'}}},
         {'$sort': {'totalScore': -1}},
@@ -264,6 +301,10 @@ def leaderboard():
 @app.route('/edit_quiz/<quiz_id>', methods=['GET', 'POST'])
 @login_required
 def edit_quiz(quiz_id):
+db = get_db()
+users = db['users']
+quizzes = db['quizzes']
+results = db['results']
     if current_user.role != 'master':
         flash('Access denied')
         return redirect(url_for('dashboard'))
@@ -346,6 +387,10 @@ def edit_quiz(quiz_id):
 @app.route('/delete_quiz/<quiz_id>', methods=['GET', 'POST'])  # Accept GET for your current JS
 @login_required
 def delete_quiz(quiz_id):
+db = get_db()
+users = db['users']
+quizzes = db['quizzes']
+results = db['results']
     if current_user.role != 'master':
         flash('Access denied')
         return redirect(url_for('dashboard'))
