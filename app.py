@@ -57,10 +57,10 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-db = get_db()
-users = db['users']
-quizzes = db['quizzes']
-results = db['results']
+    db = get_db()
+    users = db['users']
+    quizzes = db['quizzes']
+    results = db['results']
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
@@ -75,10 +75,10 @@ results = db['results']
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-db = get_db()
-users = db['users']
-quizzes = db['quizzes']
-results = db['results']
+    db = get_db()
+    users = db['users']
+    quizzes = db['quizzes']
+    results = db['results']
     if request.method == 'POST':
         username = request.form['username']
         email = request.form['email']
@@ -103,10 +103,10 @@ def dashboard():
 @app.route('/create_quiz', methods=['POST'])
 @login_required
 def create_quiz():
-db = get_db()
-users = db['users']
-quizzes = db['quizzes']
-results = db['results']
+    db = get_db()
+    users = db['users']
+    quizzes = db['quizzes']
+    results = db['results']
     if current_user.role != 'master':
         flash('Access denied')
         return redirect(url_for('dashboard'))
@@ -301,10 +301,10 @@ results = db['results']
 @app.route('/edit_quiz/<quiz_id>', methods=['GET', 'POST'])
 @login_required
 def edit_quiz(quiz_id):
-db = get_db()
-users = db['users']
-quizzes = db['quizzes']
-results = db['results']
+    db = get_db()
+    users = db['users']
+    quizzes = db['quizzes']
+    results = db['results']
     if current_user.role != 'master':
         flash('Access denied')
         return redirect(url_for('dashboard'))
@@ -387,10 +387,10 @@ results = db['results']
 @app.route('/delete_quiz/<quiz_id>', methods=['GET', 'POST'])  # Accept GET for your current JS
 @login_required
 def delete_quiz(quiz_id):
-db = get_db()
-users = db['users']
-quizzes = db['quizzes']
-results = db['results']
+    db = get_db()
+    users = db['users']
+    quizzes = db['quizzes']
+    results = db['results']
     if current_user.role != 'master':
         flash('Access denied')
         return redirect(url_for('dashboard'))
