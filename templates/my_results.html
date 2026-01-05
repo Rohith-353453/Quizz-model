@@ -18,41 +18,44 @@
     </style>
 </head>
 <body>
-    <h2>{{ 'Analytics: All Student Performance' if current_user.role == 'master' else 'My Results' }}</h2>
-    <p><a href="{{ url_for('dashboard') }}">Back to Dashboard</a></p>
-    
-    {% if results %}
-        <table>
-            <thead>
-                <tr>
-                    <th>Quiz Title</th>
-                    <th>Score</th>
-                    <th>Total</th>
-                    <th>Percentage</th>
-                    <th>Date</th>
-                    {% if current_user.role == 'master' %}
-                        <th>Student ID</th>
-                    {% endif %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for res in results %}
-                    <tr>
-                        <td>{{ res.quiz.title if res.quiz and res.quiz.title else 'Unknown' }}</td>
-                        <td class="score">{{ res.score or 0 }}</td>
-                        <td>{{ res.total or 0 }}</td>
-                        <td class="{{ 'weak' if (res.percentage or 0) < 60 else '' }}">{{ (res.percentage or 0) | round(1) }}%</td>
-                        <td>{{ res.date.strftime('%Y-%m-%d %H:%M') if res.date else 'Unknown' }}</td>
-                        {% if current_user.role == 'master' %}
-                            <td>{{ res.user or 'Unknown' }}</td>
-                        {% endif %}
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% if current_user.role == 'master' %}
-            <p><small>Low scores (<60%) highlighted. View per student ID for details.</small></p>
-        {% endif %}
+    <h2>{% if current_user.role == 'master' %}All Student Performance{% else %}My Results{% endif %}</h2>
+
+<table border="1" style="width:100%; border-collapse: collapse;">
+    <thead>
+        <tr style="background-color: #007bff; color: white;">
+            <th>Quiz Title</th>
+            <th>Score</th>
+            <th>Total</th>
+            <th>Percentage</th>
+            <th>Date</th>
+            <th>{% if current_user.role == 'master' %}Student Username{% else %}Student{% endif %}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for result in results %}
+        <tr>
+            <td>{{ result.quizTitle }}</td>
+            <td>{{ result.score }}</td>
+            <td>{{ result.total }}</td>
+            <td>{{ result.percentage }}%</td>
+            <td>{{ result.date.strftime('%Y-%m-%d %H:%M') }}</td>  <!-- Nice date format -->
+            <td>
+                {% if current_user.role == 'master' %}
+                    {{ result.studentUsername }}
+                {% else %}
+                    {{ current_user.username }}  <!-- Or just hide column for students -->
+                {% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">No results yet</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if current_user.role == 'master' %}
+    <a href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+{% endif %}
     {% else %}
         <div class="no-data">
             {% if current_user.role == 'master' %}
