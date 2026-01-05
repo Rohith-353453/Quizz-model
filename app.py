@@ -324,10 +324,51 @@ def submit_quiz(quiz_id):
 @login_required
 def my_results():
     users, quizzes, results = get_collections()
+
+    # Determine match filter: student's own results vs all (for master)
     if current_user.role == 'student':
-        res_list = list(results.find({'user': ObjectId(current_user.id)}).sort('date', -1))
+        match_stage = {'user': ObjectId(current_user.id)}
     else:
-        res_list = list(results.find({}).sort('date', -1))
+        match_stage = {}  # All results for master
+
+    pipeline = [
+        {'$match': match_stage},
+
+        # Lookup quiz title
+        {'$lookup': {
+            'from': 'quizzes',
+            'localField': 'quiz',
+            'foreignField': '_id',
+            'as': 'quizInfo'
+        }},
+        {'$unwind': {'path': '$quizInfo', 'preserveNullAndEmptyArrays': True}},
+
+        # Lookup student username
+        {'$lookup': {
+            'from': 'users',
+            'localField': 'user',
+            'foreignField': '_id',
+            'as': 'userInfo'
+        }},
+        {'$unwind': {'path': '$userInfo', 'preserveNullAndEmptyArrays': True}},
+
+        # Project flattened fields for the template
+        {'$project': {
+            '_id': 1,  # Keep if you link to details
+            'quizTitle': {'$ifNull': ['$quizInfo.title', 'Unknown']},
+            'studentUsername': {'$ifNull': ['$userInfo.username', 'Unknown User']},
+            'score': 1,
+            'total': 1,
+            'percentage': {'$round': ['$percentage', 1]},  # Nice rounding
+            'date': 1,
+            # Add 'answers' if your template shows details: 'answers': 1
+        }},
+
+        {'$sort': {'date': -1}}
+    ]
+
+    res_list = list(results.aggregate(pipeline))
+
     return render_template('my_results.html', results=res_list)
 
 @app.route('/leaderboard')
