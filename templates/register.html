@@ -3,29 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <title>FLUX Register</title>
-    <style> body { font-family: Arial; max-width: 400px; margin: 100px auto; padding: 20px; } input, select, button { width: 100%; padding: 10px; margin: 5px 0; } </style>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 20px;
+
+            /* Image background feel */
+            background: #F9FAFB;
+        }
+
+        h2 {
+            text-align: center;
+            color: #111827;
+            margin-bottom: 20px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #6366F1;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+
+            /* Image button color */
+            background: #6366F1;
+            color: white;
+
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #4F46E5;
+        }
+
+        ul {
+            padding-left: 20px;
+        }
+
+        p {
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        a {
+            color: #6366F1;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
 </head>
+
 <body>
+
     <h2>Register for FLUX</h2>
+
     {% with messages = get_flashed_messages() %}
         {% if messages %}
-            <ul style="color: red;">
+            <ul style="color: #DC2626;">
                 {% for message in messages %}
                     <li>{{ message }}</li>
                 {% endfor %}
             </ul>
         {% endif %}
     {% endwith %}
+
     <form method="POST">
         <input type="text" name="username" placeholder="Username" required>
         <input type="email" name="email" placeholder="Email" required>
         <input type="password" name="password" placeholder="Password" required>
+
         <select name="role">
             <option value="student">Student</option>
             <option value="master">Master</option>
         </select>
+
         <button type="submit">Register</button>
     </form>
-    <p>Have an account? <a href="{{ url_for('login') }}">Login here</a></p>
+
+    <p>
+        Have an account?
+        <a href="{{ url_for('login') }}">Login here</a>
+    </p>
+
 </body>
 </html>
