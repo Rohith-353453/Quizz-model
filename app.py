@@ -419,18 +419,16 @@ def leaderboard():
     
     pipeline = [
         {"$group": {
-            "_id": "$user",                      # Always exists — safe for old/new results
-            "totalScore": {"$sum": "$score"}     # Sum all scores
+            "_id": "$user",                      # Always exists (ObjectId) — works for ALL results (old + new)
+            "totalScore": {"$sum": "$score"}     # Sum of scores across all quizzes
         }},
         {"$sort": {"totalScore": -1}},
         {"$limit": 10}
     ]
     
-    print("Running leaderboard aggregation...")  # Debug
-    
     try:
         agg_results = list(results.aggregate(pipeline))
-        print(f"Raw aggregation data: {agg_results}")
+        print(f"Leaderboard aggregation success: {agg_results}")  # Debug in Vercel logs
     except Exception as e:
         flash('Error loading leaderboard — try again later.', 'danger')
         print(f"Leaderboard aggregation ERROR: {str(e)}")
@@ -445,7 +443,8 @@ def leaderboard():
             'totalScore': entry.get('totalScore', 0)
         })
     
-    print(f"Final leaderboard data: {leaderboard_data}")
+    # No placeholder needed — empty list triggers your nice "No scores yet" message in template
+    print(f"Final leaderboard data sent to template: {leaderboard_data}")
     
     return render_template('leaderboard.html', leaderboard=leaderboard_data, user=current_user)
 
