@@ -258,56 +258,85 @@ def take_quiz(quiz_id):
 def submit_quiz(quiz_id):
     if current_user.role != 'student':
         return redirect(url_for('dashboard'))
-
+    
     users, quizzes, results = get_collections()
     quiz_oid = safe_object_id(quiz_id)
     if not quiz_oid:
         flash('Invalid quiz ID')
         return redirect(url_for('quizzes'))
-
+    
     quiz = quizzes.find_one({'_id': quiz_oid})
     if not quiz:
         flash('Quiz not found')
         return redirect(url_for('quizzes'))
-
+    
     existing = results.find_one({'user': ObjectId(current_user.id), 'quiz': quiz_oid})
     if existing:
         flash('You have already submitted this quiz')
         return redirect(url_for('my_results'))
-
+    
+    # Debug: Start of submission
+    username = current_user.username if hasattr(current_user, 'username') else 'Unknown'
+    print(f"\n=== QUIZ SUBMISSION START ===\nUser: {username} (ID: {current_user.id})\nQuiz ID: {quiz_id} | Title: {quiz.get('title', 'N/A')}\nNumber of questions: {len(quiz['questions'])}\n")
+    
     answers = {}
     for i, q in enumerate(quiz['questions']):
         q_key = f"q_{i+1}"
         ans = request.form.get(q_key, '').strip()
         answers[q_key] = ans
-
+        
+        # Debug per question input
+        print(f"Raw form data for question {i+1} (key: {q_key}): User answer = '{ans}'")
+    
     score = 0
     total = sum(q['points'] for q in quiz['questions'])
     scored_answers = []
-
+    
+    print(f"\n--- SCORE CALCULATION ---\nCalculated total possible points: {total}\n")
+    
     for i, q in enumerate(quiz['questions']):
         q_key = f"q_{i+1}"
         ans = answers.get(q_key, '')
         correct = False
-
+        
+        # Debug: Show question details
+        print(f"Question {i+1}:")
+        print(f"  Text: {q['text']}")
+        print(f"  Type: {q['type']}")
+        print(f"  Points: {q['points']}")
+        print(f"  Stored correct answer: '{q['answer']}' (type: {type(q['answer'])})")
+        print(f"  User answer: '{ans}' (type: {type(ans)})")
+        
         if q['type'] in ['mcq', 'tf']:
-            correct = q['answer'] == ans
+            # Exact match (for MCQ usually option text or index, for TF "True"/"False")
+            if q['answer'] == ans:
+                correct = True
+                score += q['points']
+                print(f"  -> CORRECT! +{q['points']} points (running score: {score})")
+            else:
+                print(f"  -> Incorrect (no points added, running score: {score})")
         elif q['type'] == 'short':
-            correct = ans.lower() == q['answer'].lower()
-
-        if correct:
-            score += q['points']
-
+            if ans.lower() == q['answer'].lower():
+                correct = True
+                score += q['points']
+                print(f"  -> CORRECT! +{q['points']} points (running score: {score})")
+            else:
+                print(f"  -> Incorrect (no points added, running score: {score})")
+        
         scored_answers.append({
             'question': q['text'],
             'answer': ans,
             'correct': correct,
             'type': q['type']
         })
-
+    
     percentage = (score / total * 100) if total > 0 else 0
-
-    results.insert_one({
+    
+    # Final debug
+    print(f"\n=== FINAL RESULTS ===\nFinal score: {score}/{total} ({percentage:.1f}%)\nUser: {username}\nQuiz: {quiz.get('title')}\n")
+    
+    # Save to DB
+    result_id = results.insert_one({
         'user': ObjectId(current_user.id),
         'quiz': quiz_oid,
         'answers': scored_answers,
@@ -315,8 +344,10 @@ def submit_quiz(quiz_id):
         'total': total,
         'percentage': percentage,
         'date': datetime.now()
-    })
-
+    }).inserted_id
+    
+    print(f"Result saved to DB with ID: {result_id}\n=== SUBMISSION END ===\n")
+    
     return render_template('results.html', score=score, total=total, percentage=percentage,
                            answers=scored_answers, quiz_title=quiz['title'])
 
