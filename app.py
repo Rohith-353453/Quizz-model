@@ -419,28 +419,33 @@ def leaderboard():
     
     pipeline = [
         {"$group": {
-            "_id": "$username",                  # Groups by username (saved in results)
-            "totalScore": {"$sum": "$score"}     # Sums all scores for that student
+            "_id": "$user",                      # Always exists — safe for old/new results
+            "totalScore": {"$sum": "$score"}     # Sum all scores
         }},
-        {"$sort": {"totalScore": -1}},           # Highest score first
-        {"$limit": 10},
-        {"$project": {
-            "username": "$_id",
-            "totalScore": 1,
-            "_id": 0
-        }}
+        {"$sort": {"totalScore": -1}},
+        {"$limit": 10}
     ]
     
+    print("Running leaderboard aggregation...")  # Debug
+    
     try:
-        leaderboard_data = list(results.aggregate(pipeline))
+        agg_results = list(results.aggregate(pipeline))
+        print(f"Raw aggregation data: {agg_results}")
     except Exception as e:
         flash('Error loading leaderboard — try again later.', 'danger')
         print(f"Leaderboard aggregation ERROR: {str(e)}")
-        leaderboard_data = []
+        agg_results = []
     
-    # If no scores yet (empty list), show a placeholder row
-    if not leaderboard_data:
-        leaderboard_data = [{"username": "No scores yet", "totalScore": 0}]
+    leaderboard_data = []
+    for entry in agg_results:
+        user_doc = users.find_one({'_id': entry['_id']})
+        username = user_doc['username'] if user_doc and 'username' in user_doc else 'Unknown Student'
+        leaderboard_data.append({
+            'username': username,
+            'totalScore': entry.get('totalScore', 0)
+        })
+    
+    print(f"Final leaderboard data: {leaderboard_data}")
     
     return render_template('leaderboard.html', leaderboard=leaderboard_data, user=current_user)
 
