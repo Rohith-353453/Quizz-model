@@ -419,10 +419,10 @@ def leaderboard():
     
     pipeline = [
         {"$group": {
-            "_id": "$username",              # Now works because we save username
-            "totalScore": {"$sum": "$score"}
+            "_id": "$username",                  # Groups by username (saved in results)
+            "totalScore": {"$sum": "$score"}     # Sums all scores for that student
         }},
-        {"$sort": {"totalScore": -1}},
+        {"$sort": {"totalScore": -1}},           # Highest score first
         {"$limit": 10},
         {"$project": {
             "username": "$_id",
@@ -431,19 +431,16 @@ def leaderboard():
         }}
     ]
     
-    print("Running leaderboard aggregation...")  # Debug in logs
-    
     try:
         leaderboard_data = list(results.aggregate(pipeline))
-        print(f"Leaderboard data fetched: {leaderboard_data}")  # Shows in Vercel logs
     except Exception as e:
         flash('Error loading leaderboard — try again later.', 'danger')
         print(f"Leaderboard aggregation ERROR: {str(e)}")
         leaderboard_data = []
     
+    # If no scores yet (empty list), show a placeholder row
     if not leaderboard_data:
         leaderboard_data = [{"username": "No scores yet", "totalScore": 0}]
-        flash('No scores recorded yet.', 'info')
     
     return render_template('leaderboard.html', leaderboard=leaderboard_data, user=current_user)
 
