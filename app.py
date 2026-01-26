@@ -217,7 +217,7 @@ def create_quiz():
 
     return redirect(url_for('quizzes'))
 
-@app.route('/quizzes')
+@app.route('/quizzes', endpoint='quizzes')  # ← Added endpoint here
 @login_required
 def list_quizzes():
     users, quizzes, results = get_collections()
