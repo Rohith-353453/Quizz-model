@@ -384,27 +384,34 @@ def my_results():
 @login_required
 def leaderboard():
     users, quizzes, results = get_collections()
+    
     pipeline = [
-        {'$group': {
-            '_id': '$user',
-            'avgPercentage': {'$avg': '$percentage'},
-            'numQuizzes': {'$count': {}}
+        {"$group": {
+            "_id": "$username",                  # group by username
+            "totalScore": {"$sum": "$score"}     # sum the score field
         }},
-        {'$sort': {'avgPercentage': -1}},
-        {'$limit': 10}
+        {"$sort": {"totalScore": -1}},           # highest first
+        {"$limit": 10},
+        {"$project": {                           # reshape output for template
+            "username": "$_id",
+            "totalScore": 1,
+            "_id": 0
+        }}
     ]
-    agg_results = list(results.aggregate(pipeline))
-    top_users = []
-    for agg in agg_results:
-        if agg['numQuizzes'] == 0:
-            continue
-        user_data = users.find_one({'_id': agg['_id']})
-        top_users.append({
-            'username': user_data['username'] if user_data else 'Unknown',
-            'avgPercentage': round(agg['avgPercentage'], 2),
-            'numQuizzes': agg['numQuizzes']
-        })
-    return render_template('leaderboard.html', leaderboard=top_users)
+    
+    try:
+        leaderboard_data = list(results.aggregate(pipeline))
+        print("Leaderboard raw data:", leaderboard_data)  # ← shows in Vercel logs for debug
+    except Exception as e:
+        flash('Error loading leaderboard', 'danger')
+        print("Leaderboard aggregation error:", str(e))
+        leaderboard_data = []
+    
+    # Fallback: if no scores yet, show empty
+    if not leaderboard_data:
+        leaderboard_data = [{"username": "No scores yet", "totalScore": 0}]
+    
+    return render_template('leaderboard.html', leaderboard=leaderboard_data, user=current_user)
 
 @app.route('/edit_quiz/<quiz_id>', methods=['GET', 'POST'])
 @login_required
