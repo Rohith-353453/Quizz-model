@@ -336,15 +336,16 @@ def submit_quiz(quiz_id):
     print(f"\n=== FINAL RESULTS ===\nFinal score: {score}/{total} ({percentage:.1f}%)\nUser: {username}\nQuiz: {quiz.get('title')}\n")
     
     # Save to DB
-    result_id = results.insert_one({
-        'user': ObjectId(current_user.id),
-        'quiz': quiz_oid,
-        'answers': scored_answers,
-        'score': score,
-        'total': total,
-        'percentage': percentage,
-        'date': datetime.now()
-    }).inserted_id
+    results.insert_one({
+    'user': ObjectId(current_user.id),
+    'username': current_user.username,  # ← ADD THIS LINE (or current_user.name if that's the field)
+    'quiz': quiz_oid,
+    'answers': scored_answers,
+    'score': score,
+    'total': total,
+    'percentage': percentage,
+    'date': datetime.now()
+}).inserted_id
     
     print(f"Result saved to DB with ID: {result_id}\n=== SUBMISSION END ===\n")
     
