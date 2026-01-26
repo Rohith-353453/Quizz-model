@@ -30,14 +30,14 @@
                 </tr>
             </thead>
             <tbody>
-                {% for entry in leaderboard %}
-                    <tr>
-                        <td class="rank">{{ loop.index }}</td>
-                        <td>{{ entry.username }}</td>
-                        <td>{{ entry.score }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
+{% for rank, entry in leaderboard|enumerate(start=1) %}
+    <tr>
+        <td>{{ rank }}</td>
+        <td>{{ entry.username }}</td>
+        <td>{{ entry.totalScore | default(0) }}</td>  <!-- shows 0 if missing -->
+    </tr>
+{% endfor %}
+</tbody>
         </table>
     {% else %}
         <div class="no-data">
