@@ -1,22 +1,80 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Take Quiz: {{ quiz.title }}</title>
     <style>
-        body { font-family: Arial; max-width: 700px; margin: 50px auto; padding: 20px; }
-        .quiz-header { text-align: center; background: #007bff; color: white; padding: 20px; border-radius: 8px; }
-        .timer { font-size: 24px; color: red; text-align: center; margin: 10px 0; }
-        .question { border: 1px solid #ddd; margin: 20px 0; padding: 15px; border-radius: 4px; }
-        .question h3 { margin-top: 0; }
-        label { display: block; margin: 5px 0; }
-        input[type="radio"], input[type="text"] { margin-right: 10px; }
-        button { background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-        button:hover { background: #218838; }
-        .progress { text-align: center; margin: 20px 0; }
-        .no-questions { text-align: center; color: #666; font-style: italic; }
+        body {
+            font-family: Arial;
+            max-width: 700px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+
+        .quiz-header {
+            text-align: center;
+            background: #007bff;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .timer {
+            font-size: 24px;
+            color: red;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .question {
+            border: 1px solid #ddd;
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 4px;
+        }
+
+        .question h3 {
+            margin-top: 0;
+        }
+
+        label {
+            display: block;
+            margin: 5px 0;
+        }
+
+        input[type="radio"],
+        input[type="text"] {
+            margin-right: 10px;
+        }
+
+        button {
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background: #218838;
+        }
+
+        .progress {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .no-questions {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
     </style>
 </head>
+
 <body>
     <div class="quiz-header">
         <h1>{{ quiz.title }}</h1>
@@ -26,67 +84,66 @@
 
     <form method="POST" action="{{ url_for('submit_quiz', quiz_id=quiz._id|string) }}">
         {% if quiz.questions %}
-            {% for q in quiz.questions %}
-                {% set i = loop.index %}
-                <div class="question">
-                    <h3>Q{{ i }}: {{ q.text }} ({{ q.points }} points)</h3>
-                    {% if q.type == 'mcq' %}
-                        {% for opt in q.options %}
-                            <label>
-                                <input type="radio" name="q_{{ i }}" value="{{ opt }}" required>
-                                {{ opt }}
-                            </label><br>
-                        {% endfor %}
-                    {% elif q.type == 'tf' %}
-                        <label>
-                            <input type="radio" name="q_{{ i }}" value="True" required>
-                            True
-                        </label>
-                        <label>
-                            <input type="radio" name="q_{{ i }}" value="False" required>
-                            False
-                        </label>
-                    {% elif q.type == 'short' %}
-                        <input type="text" name="q_{{ i }}" placeholder="Your answer" required style="width: 100%; padding: 10px;">
-                    {% endif %}
-                </div>
+        {% for q in quiz.questions %}
+        {% set i = loop.index %}
+        <div class="question">
+            <h3>Q{{ i }}: {{ q.text }} ({{ q.points }} points)</h3>
+            {% if q.type == 'mcq' %}
+            {% for opt in q.options %}
+            <label>
+                <input type="radio" name="q_{{ i }}" value="{{ opt }}" required>
+                {{ opt }}
+            </label><br>
             {% endfor %}
+            {% elif q.type == 'tf' %}
+            <label>
+                <input type="radio" name="q_{{ i }}" value="True" required>
+                True
+            </label>
+            <label>
+                <input type="radio" name="q_{{ i }}" value="False" required>
+                False
+            </label>
+            {% elif q.type == 'short' %}
+            <input type="text" name="q_{{ i }}" placeholder="Your answer" required style="width: 100%; padding: 10px;">
+            {% endif %}
+        </div>
+        {% endfor %}
         {% else %}
-            <div class="no-questions">No questions in this quiz. <a href="{{ url_for('dashboard') }}">Back</a></div>
+        <div class="no-questions">No questions in this quiz. <a href="{{ url_for('dashboard') }}">Back</a></div>
         {% endif %}
-        
+
         <div class="progress">
             <button type="submit">Submit Quiz</button>
         </div>
     </form>
 
     <script>
-    // Timer countdown
-    const quizDurationSeconds = Number("{{ quiz.duration_seconds | default(0) }}");  // Safe Jinja with default
-    let timeLeft = quizDurationSeconds;
-    const timerEl = document.getElementById('timer');
-    
-    if (quizDurationSeconds > 0) {
-        const timer = setInterval(() => {
-            timeLeft--;
-            const mins = Math.floor(timeLeft / 60);
-            const secs = timeLeft % 60;
-            timerEl.textContent = `Time left: ${mins}:${secs.toString().padStart(2, '0')}`;
-            
-            if (timeLeft <= 0) {
-                clearInterval(timer);
-                alert('Time up! Submitting quiz...');
+        const quizDurationSeconds = Number("{{ quiz.duration_seconds | default(0) }}");
+        let timeLeft = quizDurationSeconds;
+        const timerEl = document.getElementById('timer');
+
+        if (quizDurationSeconds > 0) {
+            const timer = setInterval(() => {
+                timeLeft--;
+                const mins = Math.floor(timeLeft / 60);
+                const secs = timeLeft % 60;
+                timerEl.textContent = `Time left: ${mins}:${secs.toString().padStart(2, '0')}`;
+
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    alert('Time up! Submitting quiz...');
+                    document.querySelector('form').submit();
+                }
+            }, 1000);
+
+            setTimeout(() => {
                 document.querySelector('form').submit();
-            }
-        }, 1000);
-        
-        // Auto-submit on time up
-        setTimeout(() => {
-            document.querySelector('form').submit();
-        }, quizDurationSeconds * 1000);
-    } else {
-        timerEl.textContent = 'No time limit';
-    }
-</script>
+            }, quizDurationSeconds * 1000);
+        } else {
+            timerEl.textContent = 'No time limit';
+        }
+    </script>
 </body>
+
 </html>

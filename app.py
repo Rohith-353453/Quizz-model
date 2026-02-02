@@ -12,7 +12,6 @@ load_dotenv()
 
 app = Flask(__name__, template_folder='templates')
 app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
-
 app.config['MONGO_URI'] = os.getenv('MONGO_URI')
 
 # Lazy MongoDB Connection
@@ -24,7 +23,8 @@ def get_db():
     if client is None:
         mongo_uri = app.config['MONGO_URI']
         if not mongo_uri:
-            raise ValueError("MONGO_URI not set in environment variables")
+            # This ensures we get a visible error if env var is missing
+            raise ValueError("MONGO_URI not set. Check environment variables.")
         client = MongoClient(
             mongo_uri,
             serverSelectionTimeoutMS=5000,
@@ -59,12 +59,10 @@ def load_user(user_id):
             return User(str(user_data['_id']), user_data['username'], user_data['role'])
     except Exception as e:
         print(f"Error loading user: {e}")
-        return None
     return None
 
 @app.errorhandler(500)
 def internal_server_error(e):
-    # Enable error visibility for debugging deployment
     return render_template('500.html', error=e), 500
 
 # Routes
@@ -94,7 +92,7 @@ def register():
         username = request.form['username'].strip()
         email = request.form['email'].strip().lower()
         password = generate_password_hash(request.form['password'])
-        role = request.form.get('role', 'student') 
+        role = request.form.get('role', 'student')
         if role not in ['student', 'master']:
             role = 'student'
 
@@ -177,8 +175,9 @@ def create_quiz():
                     flash(f'MCQ Question {i} needs at least 2 options')
                     return render_template('create_quiz.html')
                 q['options'] = options
-            # TF stored as is
-
+            
+            # For TF, we trust strict string "True" or "False" from radio buttons
+            
             questions.append(q)
 
         if len(questions) == 0:
@@ -189,15 +188,15 @@ def create_quiz():
             return render_template('create_quiz.html')
 
         try:
-            quiz_id = quizzes.insert_one({
+            quizzes.insert_one({
                 'title': title,
                 'subject': subject,
                 'duration': duration,
                 'questions': questions,
                 'createdBy': ObjectId(current_user.id),
                 'date': datetime.now()
-            }).inserted_id
-            flash(f'Quiz "{title}" created successfully with {len(questions)} questions!')
+            })
+            flash(f'Quiz "{title}" created successfully!')
             return redirect(url_for('quizzes'))
         except Exception as e:
             flash('Quiz creation failed – please try again')
@@ -207,14 +206,17 @@ def create_quiz():
 
 @app.route('/quizzes')
 @login_required
-def list_quizzes():
-    _, quizzes, _ = get_collections()
+def quizzes():
+    # Renamed from list_quizzes to quizzes to match url_for('quizzes') usage pattern
+    _, quizzes_col, _ = get_collections()
     if current_user.role == 'master':
-        quiz_list = list(quizzes.find({'createdBy': ObjectId(current_user.id)}).sort('date', -1))
+        quiz_list = list(quizzes_col.find({'createdBy': ObjectId(current_user.id)}).sort('date', -1))
     else:
-        quiz_list = list(quizzes.find({}).sort('date', -1))
+        quiz_list = list(quizzes_col.find({}).sort('date', -1))
+    
     for quiz in quiz_list:
         quiz['_id'] = str(quiz['_id'])
+        
     return render_template('quizzes.html', quizzes=quiz_list, user=current_user)
 
 @app.route('/take_quiz/<quiz_id>')
@@ -224,8 +226,13 @@ def take_quiz(quiz_id):
         flash('Access denied')
         return redirect(url_for('dashboard'))
 
-    _, quizzes, _ = get_collections()
-    quiz = quizzes.find_one({'_id': ObjectId(quiz_id)})
+    _, quizzes_col, _ = get_collections()
+    try:
+        quiz = quizzes_col.find_one({'_id': ObjectId(quiz_id)})
+    except:
+        flash('Invalid quiz ID')
+        return redirect(url_for('quizzes'))
+
     if not quiz:
         flash('Quiz not found')
         return redirect(url_for('quizzes'))
@@ -240,8 +247,12 @@ def submit_quiz(quiz_id):
     if current_user.role != 'student':
         return redirect(url_for('dashboard'))
 
-    _, quizzes, results = get_collections()
-    quiz = quizzes.find_one({'_id': ObjectId(quiz_id)})
+    _, quizzes_col, results_col = get_collections()
+    try:
+        quiz = quizzes_col.find_one({'_id': ObjectId(quiz_id)})
+    except:
+        return redirect(url_for('quizzes'))
+
     if not quiz:
         flash('Quiz not found')
         return redirect(url_for('quizzes'))
@@ -255,16 +266,22 @@ def submit_quiz(quiz_id):
     score = 0
     total = sum(q['points'] for q in quiz['questions'])
     scored_answers = []
+    
     for i, q in enumerate(quiz['questions']):
         q_key = f"q_{i+1}"
         ans = answers.get(q_key, '')
+        
         correct = False
         if q['type'] in ['mcq', 'tf']:
+            # Exact match (Case sensitive "True" vs "True")
             correct = str(q['answer']).strip() == str(ans).strip()
         elif q['type'] == 'short':
+             # Case insensitive for short answers
             correct = ans.lower() == q['answer'].lower()
+            
         if correct:
             score += q['points']
+            
         scored_answers.append({
             'question': q['text'],
             'student_answer': ans,
@@ -276,7 +293,7 @@ def submit_quiz(quiz_id):
 
     percentage = round((score / total * 100), 2) if total > 0 else 0
 
-    results.insert_one({
+    results_col.insert_one({
         'user': ObjectId(current_user.id),
         'username': current_user.username,
         'quiz': ObjectId(quiz_id),
@@ -293,16 +310,16 @@ def submit_quiz(quiz_id):
 @app.route('/my_results')
 @login_required
 def my_results():
-    users, quizzes, results = get_collections()
+    users, quizzes_col, results_col = get_collections()
 
     if current_user.role == 'student':
-        raw_results = list(results.find({'user': ObjectId(current_user.id)}).sort('date', -1))
+        raw_results = list(results_col.find({'user': ObjectId(current_user.id)}).sort('date', -1))
     else:
-        raw_results = list(results.find({}).sort('date', -1))
+        raw_results = list(results_col.find({}).sort('date', -1))
 
     enriched_results = []
     for res in raw_results:
-        quiz = quizzes.find_one({'_id': res['quiz']})
+        quiz = quizzes_col.find_one({'_id': res['quiz']})
         student = users.find_one({'_id': res['user']})
 
         enriched_results.append({
@@ -321,28 +338,44 @@ def my_results():
 @app.route('/leaderboard')
 @login_required
 def leaderboard():
-    users, _, results = get_collections()
+    users, _, results_col = get_collections()
 
     pipeline = [
+        # Filter only docs that have a score
         {'$match': {'score': {'$exists': True}}},
-        {'$group': {'_id': '$user', 'totalScore': {'$sum': '$score'}}},
+        # Group by user ID -> sum scores
+        {'$group': {
+            '_id': '$user',
+            'totalScore': {'$sum': '$score'}
+        }},
         {'$sort': {'totalScore': -1}},
         {'$limit': 10}
     ]
     
     try:
-        agg_results = list(results.aggregate(pipeline))
+        agg_results = list(results_col.aggregate(pipeline))
     except Exception as e:
+        print(f"Aggregation Error: {e}")
         agg_results = []
 
     top_users = []
     for agg in agg_results:
-        if agg['_id']:
-            user_data = users.find_one({'_id': ObjectId(agg['_id'])})
-            top_users.append({
-                'username': user_data['username'] if user_data else 'Unknown Student',
-                'score': agg['totalScore']
-            })
+        uid = agg['_id']
+        username = 'Unknown Student'
+        # Try to resolve username
+        if uid:
+            try:
+                u = users.find_one({'_id': ObjectId(uid)})
+                if u: 
+                    username = u.get('username', 'Unknown')
+            except:
+                pass
+        
+        top_users.append({
+            'username': username,
+            'score': agg['totalScore']
+        })
+        
     return render_template('leaderboard.html', leaderboard=top_users)
 
 @app.route('/edit_quiz/<quiz_id>', methods=['GET', 'POST'])
@@ -352,8 +385,13 @@ def edit_quiz(quiz_id):
         flash('Access denied')
         return redirect(url_for('dashboard'))
 
-    _, quizzes, _ = get_collections()
-    quiz = quizzes.find_one({'_id': ObjectId(quiz_id), 'createdBy': ObjectId(current_user.id)})
+    _, quizzes_col, _ = get_collections()
+    try:
+        quiz = quizzes_col.find_one({'_id': ObjectId(quiz_id), 'createdBy': ObjectId(current_user.id)})
+    except:
+        flash('Invalid Quiz ID')
+        return redirect(url_for('quizzes'))
+        
     if not quiz:
         flash('Quiz not found or access denied')
         return redirect(url_for('quizzes'))
@@ -404,8 +442,8 @@ def edit_quiz(quiz_id):
                     return render_template('edit_quiz.html', quiz=quiz)
                 q['options'] = options
             
-            # TF kept as-is
-
+            # TF no upper() - strict matching
+            
             questions.append(q)
 
         if len(questions) == 0:
@@ -413,7 +451,7 @@ def edit_quiz(quiz_id):
             return render_template('edit_quiz.html', quiz=quiz)
 
         try:
-            quizzes.update_one(
+            quizzes_col.update_one(
                 {'_id': ObjectId(quiz_id)},
                 {'$set': {
                     'title': title,
@@ -439,12 +477,14 @@ def delete_quiz(quiz_id):
         flash('Access denied')
         return redirect(url_for('dashboard'))
 
-    _, quizzes, _ = get_collections()
-    quiz = quizzes.find_one({'_id': ObjectId(quiz_id), 'createdBy': ObjectId(current_user.id)})
-    if not quiz:
-        flash('Quiz not found or access denied')
-    else:
-        quizzes.delete_one({'_id': ObjectId(quiz_id)})
+    _, quizzes_col, _ = get_collections()
+    try:
+        quiz = quizzes_col.find_one({'_id': ObjectId(quiz_id), 'createdBy': ObjectId(current_user.id)})
+    except:
+        return redirect(url_for('quizzes'))
+        
+    if quiz:
+        quizzes_col.delete_one({'_id': ObjectId(quiz_id)})
         flash('Quiz deleted successfully!')
     return redirect(url_for('quizzes'))
 

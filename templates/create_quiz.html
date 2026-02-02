@@ -32,7 +32,6 @@
             margin: 0;
             font-size: 2.5em;
             font-weight: 700;
-            letter-spacing: 1px;
         }
 
         .back-link {
@@ -40,7 +39,6 @@
             font-weight: bold;
             text-decoration: none;
             font-size: 1.1em;
-            transition: color 0.3s;
         }
 
         .back-link:hover {
@@ -83,7 +81,6 @@
             cursor: pointer;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
             margin-top: 15px;
         }
 
@@ -98,11 +95,6 @@
             border-radius: 8px;
             background: #fafafa;
             position: relative;
-            transition: transform 0.2s;
-        }
-
-        .question-div:hover {
-            border-color: #bbb;
         }
 
         .options-group {
@@ -131,7 +123,6 @@
             background: #28a745;
             color: white;
             padding: 15px;
-            font-size: 18px;
             margin: 20px 0;
         }
 
@@ -194,14 +185,12 @@
     <section>
         <h2><i class="fas fa-edit"></i> Quiz Details</h2>
         <form id="quizForm" method="POST" action="{{ url_for('create_quiz') }}">
-            <input type="text" name="title" placeholder="Quiz Title (e.g., Physics Midterm)" required>
-            <input type="text" name="subject" placeholder="Subject (e.g., Science)" required>
+            <input type="text" name="title" placeholder="Quiz Title" required>
+            <input type="text" name="subject" placeholder="Subject" required>
             <input type="number" name="duration" min="1" placeholder="Duration (minutes)" required>
 
             <h3>Questions</h3>
-            <div id="questions-container">
-                <!-- Questions will be added here -->
-            </div>
+            <div id="questions-container"></div>
 
             <button type="button" class="add-btn" onclick="addQuestion()"><i class="fas fa-plus"></i> Add
                 Question</button>
@@ -212,22 +201,17 @@
         </form>
     </section>
 
-    <footer>
-        &copy; 2024 FLUX Quiz Platform
-    </footer>
+    <footer>&copy; 2024 FLUX Quiz Platform</footer>
 
     <script>
         let questionCount = 0;
 
         function toggleOptions(qNum) {
-            const typeSelect = document.querySelector(`select[name="q_type_${qNum}"]`);
-            const type = typeSelect ? typeSelect.value : 'mcq';
-
+            const type = document.querySelector(`select[name="q_type_${qNum}"]`).value;
             const optionsDiv = document.getElementById(`options_${qNum}`);
             const textAnswerDiv = document.getElementById(`text_answer_${qNum}`);
             const tfAnswerDiv = document.getElementById(`tf_answer_${qNum}`);
 
-            // Inputs
             const textInput = textAnswerDiv.querySelector('input');
             const tfInputs = tfAnswerDiv.querySelectorAll('input');
 
@@ -235,31 +219,25 @@
                 optionsDiv.style.display = 'block';
                 textAnswerDiv.style.display = 'block';
                 tfAnswerDiv.style.display = 'none';
-
                 textInput.disabled = false;
                 tfInputs.forEach(el => el.disabled = true);
             } else if (type === 'tf') {
                 optionsDiv.style.display = 'none';
                 textAnswerDiv.style.display = 'none';
                 tfAnswerDiv.style.display = 'block';
-
                 textInput.disabled = true;
                 tfInputs.forEach(el => el.disabled = false);
-            } else { // short
+            } else {
                 optionsDiv.style.display = 'none';
                 textAnswerDiv.style.display = 'block';
                 tfAnswerDiv.style.display = 'none';
-
                 textInput.disabled = false;
                 tfInputs.forEach(el => el.disabled = true);
             }
         }
 
         function addQuestion() {
-            if (questionCount >= 50) {
-                alert('Max 50 questions reached!');
-                return;
-            }
+            if (questionCount >= 50) return alert('Max 50 questions reached!');
             questionCount++;
             const container = document.getElementById('questions-container');
             const newDiv = document.createElement('div');
@@ -276,10 +254,10 @@
                     <option value="short">Short Answer</option>
                 </select><br>
                 
-                <textarea name="q_text_${questionCount}" placeholder="Enter question text here" rows="2" required></textarea><br>
+                <textarea name="q_text_${questionCount}" placeholder="Question text" rows="2" required></textarea><br>
                 
                 <div id="text_answer_${questionCount}">
-                    <input type="text" name="q_answer_${questionCount}" placeholder="Correct answer (for MCQ or Short Answer)" required>
+                    <input type="text" name="q_answer_${questionCount}" placeholder="Correct answer">
                 </div>
                 
                 <div id="tf_answer_${questionCount}" class="tf-group">
@@ -291,7 +269,7 @@
                 <input type="number" name="q_points_${questionCount}" value="1" min="1" max="10" placeholder="Points"><br>
                 
                 <div id="options_${questionCount}" class="options-group">
-                    <label>Options for MCQ (at least 2):</label><br>
+                    <label>Options for MCQ:</label><br>
                     <input type="text" name="option_${questionCount}_1" placeholder="Option 1"><br>
                     <input type="text" name="option_${questionCount}_2" placeholder="Option 2"><br>
                     <input type="text" name="option_${questionCount}_3" placeholder="Option 3"><br>
@@ -299,21 +277,15 @@
                 </div>
             `;
             container.appendChild(newDiv);
-            toggleOptions(questionCount); // Initialize state
+            toggleOptions(questionCount);
         }
 
         function removeQuestion(qNum) {
             const div = document.querySelector(`[data-qnum="${qNum}"]`);
-            if (div) {
-                div.remove();
-            }
-            // We don't decrement questionCount to avoid ID conflicts, just leave gaps
+            if (div) div.remove();
         }
 
-        // Add one initial question
-        window.onload = function () {
-            addQuestion();
-        };
+        window.onload = function () { addQuestion(); };
     </script>
 </body>
 
