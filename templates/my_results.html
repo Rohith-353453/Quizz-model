@@ -1,20 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <title>{% if current_user.role == 'master' %}Analytics: All Student Performance{% else %}My Results{% endif %}</title>
+    <title>{% if user.role == 'master' %}Analytics: All Student Performance{% else %}My Results{% endif %}</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #f0f0f0; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; background: white; }
-        th, td { padding: 10px; border: 1px solid #ccc; text-align: left; }
-        th { background: #007bff; color: white; }
-        a { display: block; margin: 20px 0; color: #007bff; }
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+            padding: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        th,
+        td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: #007bff;
+            color: white;
+        }
+
+        tr:hover {
+            background: #f5f5f5;
+        }
+
+        a {
+            display: inline-block;
+            margin: 20px 10px 20px 0;
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+        }
     </style>
 </head>
-<body>
-    <h1>{% if current_user.role == 'master' %}Analytics: All Student Performance{% else %}My Results{% endif %}</h1>
 
-    {% if results %}
+<body>
+    <h1>{% if user.role == 'master' %}Analytics: All Student Performance{% else %}My Results{% endif %}</h1>
+
+    {% if results and results|length > 0 %}
     <table>
         <thead>
             <tr>
@@ -23,37 +68,40 @@
                 <th>Total</th>
                 <th>Percentage</th>
                 <th>Date</th>
-                {% if current_user.role == 'master' %}
-                <th>Student Username</th>
+                {% if user.role == 'master' %}
+                <th>Student</th>
                 {% endif %}
             </tr>
         </thead>
         <tbody>
             {% for result in results %}
             <tr>
-                <td>{{ result.quizTitle }}</td>
-                <td>{{ result.score }}</td>
-                <td>{{ result.total }}</td>
-                <td>{{ result.percentage }}%</td>
-                <td>{{ result.date.strftime('%Y-%m-%d %H:%M') }}</td>
-                {% if current_user.role == 'master' %}
-                <td>{{ result.studentUsername }}</td>
+                <td>{{ result.quiz_title | default('Unknown Quiz') }}</td>
+                <td>{{ result.score | default(0) }}</td>
+                <td>{{ result.total | default(0) }}</td>
+                <td>{{ result.percentage | default(0) }}%</td>
+                <td>{{ result.date.strftime('%Y-%m-%d %H:%M') if result.date else 'N/A' }}</td>
+                {% if user.role == 'master' %}
+                <td>{{ result.student_name | default('Unknown') }}</td>
                 {% endif %}
             </tr>
             {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p>
-        {% if current_user.role == 'master' %}
-            No results yet. Wait for students to take quizzes!
+    <div class="no-data">
+        {% if user.role == 'master' %}
+        No results yet. Wait for students to take quizzes!
         {% else %}
-            No results yet. Take some quizzes first!
+        No results yet. Take some quizzes first!
         {% endif %}
-    </p>
+    </div>
     {% endif %}
 
-    <a href="{{ url_for('dashboard') }}">Back to Dashboard</a>
-    <a href="{{ url_for('list_quizzes') }}">Browse Quizzes</a>
+    <p>
+        <a href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+        <a href="{{ url_for('quizzes') }}">Browse Quizzes</a>
+    </p>
 </body>
+
 </html>
