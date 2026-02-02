@@ -11,7 +11,7 @@ Edit/Delete quizzes.
 3.Exam Taking (Student)
 Browse quizzes assigned/available.
 Attempt quiz with timer.
-Submit answers.
+Submit answers.  
 Results & Reports
 Auto-check MCQs/TFs.
 Manual/auto evaluation for short answers.

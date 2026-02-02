@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>FLUX - Create Quiz</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+
+        header {
+            text-align: center;
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .back-link {
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: bold;
+            text-decoration: none;
+            font-size: 1.1em;
+            transition: color 0.3s;
+        }
+
+        .back-link:hover {
+            color: white;
+        }
+
+        section {
+            background: white;
+            margin: 20px 0;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        input,
+        textarea,
+        select,
+        button {
+            padding: 12px;
+            margin: 8px 0;
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 15px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .question-div {
+            border: 1px solid #e1e1e1;
+            margin: 20px 0;
+            padding: 25px;
+            border-radius: 8px;
+            background: #fafafa;
+            position: relative;
+            transition: transform 0.2s;
+        }
+
+        .question-div:hover {
+            border-color: #bbb;
+        }
+
+        .options-group {
+            margin-left: 20px;
+            display: none;
+            border-left: 3px solid #007bff;
+            padding-left: 15px;
+        }
+
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            padding: 8px 15px;
+            font-size: 14px;
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: auto;
+        }
+
+        .remove-btn:hover {
+            background: #c82333;
+        }
+
+        .add-btn {
+            background: #28a745;
+            color: white;
+            padding: 15px;
+            font-size: 18px;
+            margin: 20px 0;
+        }
+
+        .add-btn:hover {
+            background: #218838;
+        }
+
+        .flash {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 6px;
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .tf-group {
+            display: none;
+            margin: 10px 0;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 4px;
+        }
+
+        .tf-group label {
+            margin-right: 20px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .tf-group input[type="radio"] {
+            width: auto;
+            margin-right: 5px;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 50px;
+            color: #777;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <a href="{{ url_for('dashboard') }}" class="back-link"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+        <h1>Create New Quiz</h1>
+        <div style="width: 30px;"></div>
+    </header>
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    {% for message in messages %}
+    <div class="flash">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <section>
+        <h2><i class="fas fa-edit"></i> Quiz Details</h2>
+        <form id="quizForm" method="POST" action="{{ url_for('create_quiz') }}">
+            <input type="text" name="title" placeholder="Quiz Title (e.g., Physics Midterm)" required>
+            <input type="text" name="subject" placeholder="Subject (e.g., Science)" required>
+            <input type="number" name="duration" min="1" placeholder="Duration (minutes)" required>
+
+            <h3>Questions</h3>
+            <div id="questions-container">
+                <!-- Questions will be added here -->
+            </div>
+
+            <button type="button" class="add-btn" onclick="addQuestion()"><i class="fas fa-plus"></i> Add
+                Question</button>
+            <p><small>Max 50 questions.</small></p>
+
+            <button type="submit" style="background-color: #17a2b8; padding: 15px; font-size: 18px;">Create
+                Quiz</button>
+        </form>
+    </section>
+
+    <footer>
+        &copy; 2024 FLUX Quiz Platform
+    </footer>
+
+    <script>
+        let questionCount = 0;
+
+        function toggleOptions(qNum) {
+            const typeSelect = document.querySelector(`select[name="q_type_${qNum}"]`);
+            const type = typeSelect ? typeSelect.value : 'mcq';
+
+            const optionsDiv = document.getElementById(`options_${qNum}`);
+            const textAnswerDiv = document.getElementById(`text_answer_${qNum}`);
+            const tfAnswerDiv = document.getElementById(`tf_answer_${qNum}`);
+
+            // Inputs
+            const textInput = textAnswerDiv.querySelector('input');
+            const tfInputs = tfAnswerDiv.querySelectorAll('input');
+
+            if (type === 'mcq') {
+                optionsDiv.style.display = 'block';
+                textAnswerDiv.style.display = 'block';
+                tfAnswerDiv.style.display = 'none';
+
+                textInput.disabled = false;
+                tfInputs.forEach(el => el.disabled = true);
+            } else if (type === 'tf') {
+                optionsDiv.style.display = 'none';
+                textAnswerDiv.style.display = 'none';
+                tfAnswerDiv.style.display = 'block';
+
+                textInput.disabled = true;
+                tfInputs.forEach(el => el.disabled = false);
+            } else { // short
+                optionsDiv.style.display = 'none';
+                textAnswerDiv.style.display = 'block';
+                tfAnswerDiv.style.display = 'none';
+
+                textInput.disabled = false;
+                tfInputs.forEach(el => el.disabled = true);
+            }
+        }
+
+        function addQuestion() {
+            if (questionCount >= 50) {
+                alert('Max 50 questions reached!');
+                return;
+            }
+            questionCount++;
+            const container = document.getElementById('questions-container');
+            const newDiv = document.createElement('div');
+            newDiv.className = 'question-div';
+            newDiv.dataset.qnum = questionCount;
+            newDiv.innerHTML = `
+                <button type="button" class="remove-btn" onclick="removeQuestion(${questionCount})"><i class="fas fa-trash"></i> Remove</button>
+                <h4>Question ${questionCount}</h4>
+                
+                <label>Question Type:</label>
+                <select name="q_type_${questionCount}" onchange="toggleOptions(${questionCount})">
+                    <option value="mcq">Multiple Choice (MCQ)</option>
+                    <option value="tf">True/False</option>
+                    <option value="short">Short Answer</option>
+                </select><br>
+                
+                <textarea name="q_text_${questionCount}" placeholder="Enter question text here" rows="2" required></textarea><br>
+                
+                <div id="text_answer_${questionCount}">
+                    <input type="text" name="q_answer_${questionCount}" placeholder="Correct answer (for MCQ or Short Answer)" required>
+                </div>
+                
+                <div id="tf_answer_${questionCount}" class="tf-group">
+                    <label>Select Correct Answer:</label><br>
+                    <label><input type="radio" name="q_answer_${questionCount}" value="True"> True</label>
+                    <label><input type="radio" name="q_answer_${questionCount}" value="False"> False</label>
+                </div>
+
+                <input type="number" name="q_points_${questionCount}" value="1" min="1" max="10" placeholder="Points"><br>
+                
+                <div id="options_${questionCount}" class="options-group">
+                    <label>Options for MCQ (at least 2):</label><br>
+                    <input type="text" name="option_${questionCount}_1" placeholder="Option 1"><br>
+                    <input type="text" name="option_${questionCount}_2" placeholder="Option 2"><br>
+                    <input type="text" name="option_${questionCount}_3" placeholder="Option 3"><br>
+                    <input type="text" name="option_${questionCount}_4" placeholder="Option 4">
+                </div>
+            `;
+            container.appendChild(newDiv);
+            toggleOptions(questionCount); // Initialize state
+        }
+
+        function removeQuestion(qNum) {
+            const div = document.querySelector(`[data-qnum="${qNum}"]`);
+            if (div) {
+                div.remove();
+            }
+            // We don't decrement questionCount to avoid ID conflicts, just leave gaps
+        }
+
+        // Add one initial question
+        window.onload = function () {
+            addQuestion();
+        };
+    </script>
+</body>
+
+</html>
