@@ -23,10 +23,12 @@ def get_db():
     global client, db
     if client is None:
         mongo_uri = app.config['MONGO_URI']
+        if not mongo_uri:
+            raise ValueError("MONGO_URI not set in environment variables")
         client = MongoClient(
             mongo_uri,
-            serverSelectionTimeoutMS=30000,
-            connectTimeoutMS=30000,
+            serverSelectionTimeoutMS=5000,
+            connectTimeoutMS=5000,
             maxPoolSize=50,
             retryWrites=True
         )
@@ -50,11 +52,20 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    users, _, _ = get_collections()
-    user_data = users.find_one({'_id': ObjectId(user_id)})
-    if user_data:
-        return User(str(user_data['_id']), user_data['username'], user_data['role'])
+    try:
+        users, _, _ = get_collections()
+        user_data = users.find_one({'_id': ObjectId(user_id)})
+        if user_data:
+            return User(str(user_data['_id']), user_data['username'], user_data['role'])
+    except Exception as e:
+        print(f"Error loading user: {e}")
+        return None
     return None
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    # Enable error visibility for debugging deployment
+    return render_template('500.html', error=e), 500
 
 # Routes
 @app.route('/')

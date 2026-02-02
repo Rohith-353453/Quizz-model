@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>500 Internal Server Error</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 50px;
+            background: #333;
+            color: #fff;
+        }
+
+        .error-box {
+            background: #444;
+            padding: 20px;
+            border: 1px solid #f00;
+            border-radius: 5px;
+        }
+
+        h1 {
+            color: #f66;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        a {
+            color: #88f;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>500 - Internal Server Error</h1>
+    <p>Something went wrong on the server.</p>
+
+    <div class="error-box">
+        <h3>Debug Information:</h3>
+        {% if error %}
+        <p><strong>Error:</strong> {{ error }}</p>
+        {% if error.original_exception %}
+        <p><strong>Original Exception:</strong> {{ error.original_exception }}</p>
+        {% endif %}
+        {% else %}
+        <p>No error details available.</p>
+        {% endif %}
+    </div>
+
+    <p style="margin-top: 30px;">
+        <a href="{{ url_for('dashboard') }}">Try Dashboard</a> |
+        <a href="{{ url_for('login') }}">Login</a>
+    </p>
+</body>
+
+</html>
