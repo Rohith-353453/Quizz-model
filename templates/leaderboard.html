@@ -10,7 +10,7 @@
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
         th { background: #007bff; color: white; }
         tr:hover { background: #f5f5f5; }
-        .rank { font-weight: bold; color: #ffd700; }  /* Gold for top */
+        .rank { font-weight: bold; color: #ffd700; } /* Gold for top */
         .no-data { text-align: center; color: #666; padding: 40px; font-style: italic; }
         a { color: #007bff; text-decoration: none; }
         a:hover { text-decoration: underline; }
@@ -19,7 +19,7 @@
 <body>
     <h2>Top Performers Leaderboard</h2>
     <p><a href="{{ url_for('dashboard') }}">Back to Dashboard</a></p>
-    
+   
     {% if leaderboard %}
         <table>
             <thead>
@@ -30,11 +30,11 @@
                 </tr>
             </thead>
             <tbody>
-                {% for entry in leaderboard %}
+                {% for rank, entry in leaderboard|enumerate(start=1) %}
                     <tr>
-                        <td class="rank">{{ loop.index }}</td>
+                        <td>{{ rank }}</td>
                         <td>{{ entry.username }}</td>
-                        <td>{{ entry.score }}</td>
+                        <td>{{ entry.totalScore | default(0) }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -42,7 +42,7 @@
     {% else %}
         <div class="no-data">
             No scores yet. Take some quizzes to build the leaderboard!
-            <br><a href="{{ url_for('list_quizzes') }}">Browse Quizzes</a>
+            <br><a href="{{ url_for('quizzes') }}">Browse Quizzes</a>
         </div>
     {% endif %}
 </body>

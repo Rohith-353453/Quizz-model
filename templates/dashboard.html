@@ -171,7 +171,7 @@
     {% if user.role == 'master' %}
         <div class="nav-links">
             <div class="welcome-text">Welcome to FLUX Master Dashboard</div>
-            <a href="{{ url_for('list_quizzes') }}"><i class="fas fa-list"></i> View My Quizzes</a>
+            <a href="{{ url_for('quizzes') }}"><i class="fas fa-list"></i> View My Quizzes</a>
             <a href="{{ url_for('my_results') }}"><i class="fas fa-chart-bar"></i> Analytics</a>
             <a href="{{ url_for('leaderboard') }}"><i class="fas fa-trophy"></i> Leaderboard</a>
         </div>
@@ -217,7 +217,7 @@
     {% else %}
         <div class="nav-links">
             <div class="welcome-text">Student Dashboard</div>
-            <a href="{{ url_for('list_quizzes') }}"><i class="fas fa-list"></i> Browse Available Quizzes</a>
+            <a href="{{ url_for('quizzes') }}"><i class="fas fa-list"></i> Browse Available Quizzes</a>
             <a href="{{ url_for('my_results') }}"><i class="fas fa-chart-line"></i> My Results</a>
             <a href="{{ url_for('leaderboard') }}"><i class="fas fa-trophy"></i> Leaderboard</a>
         </div>
