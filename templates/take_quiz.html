@@ -97,12 +97,12 @@
             {% endfor %}
             {% elif q.type == 'tf' %}
             <label>
-                <input type="radio" name="q_{{ i }}" value="True" required>
-                True
+                <input type="radio" name="q_{{ i }}" value="TRUE" required>
+                TRUE
             </label>
             <label>
-                <input type="radio" name="q_{{ i }}" value="False" required>
-                False
+                <input type="radio" name="q_{{ i }}" value="FALSE" required>
+                FALSE
             </label>
             {% elif q.type == 'short' %}
             <input type="text" name="q_{{ i }}" placeholder="Your answer" required style="width: 100%; padding: 10px;">

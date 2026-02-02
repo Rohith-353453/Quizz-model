@@ -158,6 +158,10 @@ def create_quiz():
             if q_points < 1:
                 q_points = 1
 
+            # For TF questions, ensure answer is stored as uppercase "TRUE" or "FALSE"
+            if q_type == 'tf':
+                q_answer = q_answer.upper()  # Normalize to "TRUE" or "FALSE"
+            
             q = {
                 'type': q_type,
                 'text': q_text,
@@ -175,8 +179,6 @@ def create_quiz():
                     flash(f'MCQ Question {i} needs at least 2 options')
                     return render_template('create_quiz.html')
                 q['options'] = options
-            
-            # For TF, we trust strict string "True" or "False" from radio buttons
             
             questions.append(q)
 
@@ -272,11 +274,14 @@ def submit_quiz(quiz_id):
         ans = answers.get(q_key, '')
         
         correct = False
-        if q['type'] in ['mcq', 'tf']:
-            # Exact match (Case sensitive "True" vs "True")
+        if q['type'] == 'tf':
+            # TF: Compare as uppercase for consistency
+            correct = str(q['answer']).strip().upper() == str(ans).strip().upper()
+        elif q['type'] == 'mcq':
+            # MCQ: Exact match
             correct = str(q['answer']).strip() == str(ans).strip()
         elif q['type'] == 'short':
-             # Case insensitive for short answers
+            # Short answer: Case insensitive
             correct = ans.lower() == q['answer'].lower()
             
         if correct:
@@ -424,6 +429,10 @@ def edit_quiz(quiz_id):
             if q_points < 1:
                 q_points = 1
 
+            # For TF questions, normalize to uppercase
+            if q_type == 'tf':
+                q_answer = q_answer.upper()
+
             q = {
                 'type': q_type,
                 'text': q_text,
@@ -441,8 +450,6 @@ def edit_quiz(quiz_id):
                     flash(f'MCQ Question {i} needs at least 2 options')
                     return render_template('edit_quiz.html', quiz=quiz)
                 q['options'] = options
-            
-            # TF no upper() - strict matching
             
             questions.append(q)
 
