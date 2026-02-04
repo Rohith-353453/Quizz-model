@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Quiz Lobby - {{ quiz.title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        .lobby-page {
+            min-height: 100vh;
+            background:
+                radial-gradient(ellipse at top center, rgba(191, 255, 0, 0.08) 0%, transparent 50%),
+                var(--bg-primary);
+            position: relative;
+        }
+
+        /* Accent line animation */
+        .lobby-page::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent), var(--surface-mint), var(--accent));
+            background-size: 200% 100%;
+            animation: shimmer 3s ease-in-out infinite;
+        }
+
+        @keyframes shimmer {
+
+            0%,
+            100% {
+                background-position: 200% 0;
+            }
+
+            50% {
+                background-position: 0% 0;
+            }
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        /* Header */
+        .lobby-header {
+            text-align: center;
+            margin-bottom: 40px;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        .lobby-header h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent), var(--surface-mint));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 12px;
+        }
+
+        .quiz-info {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .quiz-info span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Share Link Card */
+        .share-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .share-card label {
+            display: block;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+        }
+
+        .share-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .share-link:hover {
+            border-color: var(--accent);
+        }
+
+        .share-link code {
+            flex: 1;
+            font-family: 'Monaco', 'Consolas', monospace;
+            color: var(--accent);
+            font-size: 0.9rem;
+            text-align: left;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .copy-btn {
+            padding: 10px 16px;
+            background: var(--accent);
+            color: var(--text-on-accent);
+            border: none;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .copy-btn:hover {
+            box-shadow: 0 0 20px rgba(191, 255, 0, 0.3);
+        }
+
+        /* Main Grid */
+        .lobby-grid {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 24px;
+        }
+
+        /* Players Section */
+        .players-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .section-header h2 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.2rem;
+        }
+
+        .player-count {
+            background: var(--accent);
+            color: var(--text-on-accent);
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .players-list {
+            list-style: none;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .player-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            margin-bottom: 10px;
+            transition: all var(--transition-fast);
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .player-item:hover {
+            border-color: var(--border-accent);
+        }
+
+        .player-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--surface-mint));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--text-on-accent);
+        }
+
+        .player-name {
+            flex: 1;
+            font-weight: 500;
+        }
+
+        .player-name .you-badge {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-left: 6px;
+        }
+
+        .player-status {
+            width: 10px;
+            height: 10px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.6;
+                transform: scale(0.9);
+            }
+        }
+
+        .kick-btn {
+            padding: 8px 14px;
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid rgba(255, 68, 68, 0.3);
+            color: var(--error);
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .kick-btn:hover {
+            background: var(--error);
+            color: white;
+        }
+
+        .no-players {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 40px 20px;
+        }
+
+        .no-players i {
+            font-size: 2rem;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        /* Controls Section */
+        .controls-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .status-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            text-align: center;
+        }
+
+        .status-card h3 {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 8px;
+        }
+
+        .status-card .status {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .status-card .status.waiting {
+            color: #FFD700;
+        }
+
+        .status-card .status.ready {
+            color: var(--accent);
+        }
+
+        .master-badge {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: #000;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-left: 8px;
+        }
+
+        .start-btn {
+            width: 100%;
+            padding: 20px 24px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), #9AE600);
+            color: var(--text-on-accent);
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .start-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 0 40px rgba(191, 255, 0, 0.5);
+        }
+
+        .start-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .back-btn {
+            width: 100%;
+            padding: 16px 24px;
+            font-size: 1rem;
+            font-weight: 500;
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: all var(--transition-fast);
+            display: block;
+        }
+
+        .back-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Connection Status */
+        .connection-status {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 12px 20px;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 100;
+        }
+
+        .connection-status.connected {
+            background: rgba(191, 255, 0, 0.1);
+            color: var(--accent);
+            border: 1px solid rgba(191, 255, 0, 0.3);
+        }
+
+        .connection-status.disconnected {
+            background: rgba(255, 68, 68, 0.1);
+            color: var(--error);
+            border: 1px solid rgba(255, 68, 68, 0.3);
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        /* Kicked Alert */
+        .kicked-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .kicked-alert {
+            background: var(--bg-card);
+            border: 2px solid var(--error);
+            border-radius: var(--radius-xl);
+            padding: 48px;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .kicked-alert i {
+            font-size: 3rem;
+            color: var(--error);
+            margin-bottom: 16px;
+        }
+
+        .kicked-alert h2 {
+            margin-bottom: 12px;
+        }
+
+        .kicked-alert p {
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .lobby-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .lobby-header h1 {
+                font-size: 1.8rem;
+            }
+
+            .share-link code {
+                font-size: 0.75rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="lobby-page">
+        <div class="container">
+            <!-- Header -->
+            <div class="lobby-header">
+                <h1>🎮 {{ quiz.title }}</h1>
+                <div class="quiz-info">
+                    <span><i class="fas fa-book"></i> {{ quiz.subject }}</span>
+                    <span><i class="fas fa-question-circle"></i> {{ quiz.questions | length }} questions</span>
+                    <span><i class="fas fa-clock"></i> {{ quiz.duration }} min</span>
+                </div>
+            </div>
+
+            <!-- Share Link -->
+            <div class="share-card">
+                <label>Share this link with students:</label>
+                <div class="share-link" onclick="copyLink()">
+                    <code id="lobbyLink">{{ request.url }}</code>
+                    <button class="copy-btn" id="copyBtn">
+                        <i class="fas fa-copy"></i> Copy
+                    </button>
+                </div>
+            </div>
+
+            <!-- Main Grid -->
+            <div class="lobby-grid">
+                <!-- Players Section -->
+                <div class="players-section">
+                    <div class="section-header">
+                        <h2>
+                            <i class="fas fa-users"></i> Players
+                        </h2>
+                        <span class="player-count" id="playerCount">0</span>
+                    </div>
+                    <ul class="players-list" id="playersList">
+                        <li class="no-players">
+                            <i class="fas fa-hourglass-half"></i>
+                            <p>Waiting for players to join...</p>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Controls Section -->
+                <div class="controls-section">
+                    <div class="status-card">
+                        <h3>Status</h3>
+                        <p class="status waiting" id="statusText">Waiting for players</p>
+                    </div>
+
+                    <div class="status-card">
+                        <h3>Your Role</h3>
+                        <p class="status">
+                            {{ 'Quiz Master' if is_master else 'Student' }}
+                            {% if is_master %}<span class="master-badge">HOST</span>{% endif %}
+                        </p>
+                    </div>
+
+                    {% if is_master %}
+                    <button class="start-btn" id="startBtn" onclick="startQuiz()" disabled>
+                        <i class="fas fa-rocket"></i> Start Quiz
+                    </button>
+                    {% else %}
+                    <div class="status-card">
+                        <h3>Ready!</h3>
+                        <p class="status ready">Waiting for host to start...</p>
+                    </div>
+                    {% endif %}
+
+                    <a href="{{ url_for('quizzes') }}" class="back-btn">
+                        <i class="fas fa-arrow-left"></i> Back to Quizzes
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connection Status -->
+        <div class="connection-status disconnected" id="connectionStatus">
+            <span class="connection-dot"></span>
+            <span id="connectionText">Connecting...</span>
+        </div>
+    </div>
+
+    <script>
+        // Quiz and user data from Flask
+        const quizId = "{{ quiz._id }}";
+        const userId = "{{ user.id }}";
+        const username = "{{ user.username }}";
+        const isMaster = {{ 'true' if is_master else 'false' }};
+
+        // Initialize Socket.IO connection
+        const socket = io();
+
+        // Connection established
+        socket.on('connect', function () {
+            console.log('[SocketIO] Connected:', socket.id);
+            updateConnectionStatus(true);
+
+            socket.emit('join_lobby', {
+                quiz_id: quizId,
+                user_id: userId,
+                username: username
+            });
+        });
+
+        // Connection lost
+        socket.on('disconnect', function () {
+            console.log('[SocketIO] Disconnected');
+            updateConnectionStatus(false);
+        });
+
+        // Joined confirmation
+        socket.on('joined', function (data) {
+            console.log('[SocketIO] Joined lobby:', data);
+        });
+
+        // Player list update
+        socket.on('player_list', function (data) {
+            console.log('[SocketIO] Player list update:', data);
+            updatePlayerList(data.players);
+        });
+
+        // Quiz started - redirect to live quiz page
+        socket.on('quiz_started', function (data) {
+            console.log('[SocketIO] Quiz started!', data);
+            window.location.href = `/live_quiz/${quizId}`;
+        });
+
+        // Error handling
+        socket.on('error', function (data) {
+            console.error('[SocketIO] Error:', data);
+            alert('Error: ' + data.message);
+        });
+
+        // Handle being kicked
+        socket.on('kicked', function (data) {
+            console.log('[SocketIO] You were kicked:', data);
+            document.body.innerHTML = `
+                <div class="kicked-overlay">
+                    <div class="kicked-alert">
+                        <i class="fas fa-ban"></i>
+                        <h2>Removed from Quiz</h2>
+                        <p>${data.message}</p>
+                        <a href="${window.location.origin}/quizzes" class="back-btn" style="display: inline-block;">
+                            Back to Quizzes
+                        </a>
+                    </div>
+                </div>
+            `;
+        });
+
+        // Handle another player being kicked
+        socket.on('player_kicked', function (data) {
+            console.log('[SocketIO] Player kicked:', data);
+        });
+
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            const textEl = document.getElementById('connectionText');
+
+            if (connected) {
+                statusEl.className = 'connection-status connected';
+                textEl.textContent = 'Connected';
+            } else {
+                statusEl.className = 'connection-status disconnected';
+                textEl.textContent = 'Disconnected';
+            }
+        }
+
+        function updatePlayerList(players) {
+            const listEl = document.getElementById('playersList');
+            const countEl = document.getElementById('playerCount');
+            const startBtn = document.getElementById('startBtn');
+            const statusText = document.getElementById('statusText');
+
+            countEl.textContent = players.length;
+
+            if (players.length === 0) {
+                listEl.innerHTML = `
+                    <li class="no-players">
+                        <i class="fas fa-hourglass-half"></i>
+                        <p>Waiting for players to join...</p>
+                    </li>
+                `;
+                if (isMaster && startBtn) {
+                    startBtn.disabled = true;
+                }
+                statusText.textContent = 'Waiting for players';
+                statusText.className = 'status waiting';
+            } else {
+                listEl.innerHTML = players.map(player => {
+                    const isMe = player.user_id === userId;
+                    const kickBtn = (isMaster && !isMe) ?
+                        `<button class="kick-btn" onclick="kickPlayer('${player.user_id}', '${player.username}')"><i class="fas fa-times"></i> Kick</button>` : '';
+
+                    return `
+                        <li class="player-item">
+                            <div class="player-avatar">${player.username.charAt(0).toUpperCase()}</div>
+                            <span class="player-name">${player.username}${isMe ? '<span class="you-badge">(You)</span>' : ''}</span>
+                            ${kickBtn}
+                            <span class="player-status"></span>
+                        </li>
+                    `;
+                }).join('');
+
+                if (isMaster && startBtn) {
+                    startBtn.disabled = false;
+                }
+                statusText.textContent = `${players.length} player${players.length > 1 ? 's' : ''} ready`;
+                statusText.className = 'status ready';
+            }
+        }
+
+        function kickPlayer(targetUserId, targetUsername) {
+            if (!isMaster) return;
+            if (!confirm(`Kick ${targetUsername} from this quiz?`)) return;
+
+            socket.emit('kick_player', {
+                quiz_id: quizId,
+                master_id: userId,
+                target_user_id: targetUserId
+            });
+        }
+
+        function startQuiz() {
+            if (!isMaster) return;
+
+            const startBtn = document.getElementById('startBtn');
+            startBtn.disabled = true;
+            startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+
+            socket.emit('start_quiz', {
+                quiz_id: quizId,
+                user_id: userId
+            });
+        }
+
+        function copyLink() {
+            const link = document.getElementById('lobbyLink').textContent.trim();
+            navigator.clipboard.writeText(link).then(() => {
+                const btn = document.getElementById('copyBtn');
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="fas fa-copy"></i> Copy';
+                }, 2000);
+            });
+        }
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', function () {
+            socket.emit('leave_lobby', {
+                quiz_id: quizId,
+                user_id: userId
+            });
+        });
+    </script>
+</body>
+
+</html>

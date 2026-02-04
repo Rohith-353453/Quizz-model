@@ -1,186 +1,324 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FLUX Login</title>
+    <title>FLUX - Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        * {
-            box-sizing: border-box;
-        }
-        body { 
-            font-family: Arial, sans-serif; 
-            background-color: #f4f4f4; 
-            max-width: 900px; 
-            margin: 0 auto; 
-            padding: 20px; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 70vh;
-            line-height: 1.5;
-        }
-        .login-card {
-            background: white;
-            border-radius: 12px;
-            padding: 40px 30px;
-            box-shadow: 0 4px 12px rgba(12, 134, 227, 0.1);
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
-            border: 1px solid #f0f0f0;
-        }
-        .flux-logo {
-            font-size: 3rem;
-            font-weight: bold;
-            color: #007bff;
-            margin-bottom: 15px;
-            text-shadow: 2px 2px 4px #27bbf0;
-            -webkit-text-stroke: 1px #3c82d7;
-            letter-spacing: 2px;
-        }
-        .login-card h2 {
-            color: #333;
-            margin-bottom: 25px;
-            font-size: 1.5rem;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        input, select { 
-            width: 100%; 
-            padding: 12px 15px 12px 40px; 
-            border: 1px solid #ddd; 
-            border-radius: 6px; 
-            font-size: 16px;
-            transition: border-color 0.3s ease;
-            background-color: #fafafa;
-        }
-        input:focus, select:focus {
-            outline: none;
-            border-color: #007bff;
-            box-shadow: 0 0 0 2px rgba(185, 187, 188, 0.1);
-        }
-        input::placeholder {
-            color: #999;
-        }
-        select {
-            background-color: #fafafa;
-            color: #333;
-            cursor: pointer;
-        }
-        button { 
-            width: 100%;
-            padding: 12px; 
-            background: #007bff; 
-            color: white; 
-            border: none; 
-            border-radius: 6px; 
-            cursor: pointer; 
-            font-weight: bold; 
-            font-size: 16px;
-            transition: background 0.3s ease, box-shadow 0.3s ease;
-            margin-top: 10px;
-        }
-        button:hover { 
-            background: #0c3778; 
-            box-shadow: 0 2px 8px rgba(212, 216, 219, 0.3);
-        }
-        button:active {
-            transform: translateY(1px);
-        }
-        .error-messages {
-            color: #007bff;
-            list-style: none;
-            padding: 0;
-            margin: 10px 0;
-            font-size: 14px;
-        }
-        .error-messages li {
-            margin: 5px 0;
+        .login-page {
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 5px;
-        }
-        .register-section {
-            margin-top: 25px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-        }
-        .register-link {
-            color: #007bff;
-            text-decoration: none;
-            font-weight: bold;
-            transition: color 0.3s ease;
-        }
-        .register-link:hover {
-            text-decoration: underline;
-            color: #e67e00;
-        }
-        .icon-input {
+            padding: 24px;
+            background: var(--bg-primary);
             position: relative;
-            margin-bottom: 15px;
+            overflow: hidden;
         }
-        .icon-input i {
+
+        .login-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-xl);
+            padding: 48px 40px;
+            width: 100%;
+            max-width: 420px;
+            text-align: center;
+            position: relative;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        .login-card::before {
+            content: '';
             position: absolute;
-            left: 15px;
+            top: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            border-radius: 2px;
+        }
+
+        .flux-logo {
+            font-size: 3.5rem;
+            font-weight: 800;
+            color: var(--accent);
+            margin-bottom: 8px;
+            letter-spacing: -0.03em;
+            text-shadow: 0 0 40px rgba(191, 255, 0, 0.3);
+        }
+
+        .login-subtitle {
+            color: var(--text-muted);
+            margin-bottom: 32px;
+            font-size: 1rem;
+        }
+
+        .login-card h2 {
+            color: var(--text-primary);
+            margin-bottom: 32px;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .input-group i {
+            position: absolute;
+            left: 16px;
             top: 50%;
             transform: translateY(-50%);
-            color: #007bff;
+            color: var(--text-muted);
             font-size: 14px;
+            transition: color var(--transition-fast);
             z-index: 1;
         }
-        .login-card i {
-            color: #007bff;
+
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 16px 16px 16px 48px;
+            font-size: 1rem;
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            transition: all var(--transition-fast);
+            outline: none;
         }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .input-group input:focus+i,
+        .input-group:focus-within i {
+            color: var(--accent);
+        }
+
+        .input-group input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .input-group select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            cursor: pointer;
+        }
+
+        .input-group select option {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 18px 24px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            background: var(--accent);
+            color: var(--text-on-accent);
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 0 30px rgba(191, 255, 0, 0.4);
+        }
+
+        .login-btn:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 28px 0;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-subtle);
+        }
+
+        .divider span {
+            padding: 0 16px;
+        }
+
+        .register-section {
+            color: var(--text-secondary);
+        }
+
+        .register-link {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all var(--transition-fast);
+        }
+
+        .register-link:hover {
+            text-decoration: underline;
+            text-shadow: 0 0 10px rgba(191, 255, 0, 0.3);
+        }
+
+        .error-messages {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 20px 0;
+        }
+
+        .error-messages li {
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid rgba(255, 68, 68, 0.3);
+            color: var(--error);
+            padding: 12px 16px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+        }
+
+        /* Floating particles effect */
+        .particles {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--accent);
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: float 15s infinite ease-in-out;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 0.3;
+            }
+
+            90% {
+                opacity: 0.3;
+            }
+
+            100% {
+                transform: translateY(-100vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
         @media (max-width: 480px) {
             .login-card {
-                padding: 30px 20px;
-                margin: 10px;
+                padding: 32px 24px;
+                margin: 16px;
             }
+
             .flux-logo {
                 font-size: 2.5rem;
             }
         }
     </style>
 </head>
+
 <body>
-    <div class="login-card">
-        <div class="flux-logo">FLUX</div>
-        <h2>Login</h2>
-        {% with messages = get_flashed_messages() %}
+    <div class="particles">
+        <div class="particle" style="left: 10%; animation-delay: 0s;"></div>
+        <div class="particle" style="left: 20%; animation-delay: 2s;"></div>
+        <div class="particle" style="left: 40%; animation-delay: 4s;"></div>
+        <div class="particle" style="left: 60%; animation-delay: 6s;"></div>
+        <div class="particle" style="left: 80%; animation-delay: 8s;"></div>
+        <div class="particle" style="left: 90%; animation-delay: 10s;"></div>
+    </div>
+
+    <div class="login-page">
+        <div class="login-card">
+            <div class="flux-logo">FLUX</div>
+            <p class="login-subtitle">Welcome back! Please sign in.</p>
+
+            {% with messages = get_flashed_messages() %}
             {% if messages %}
-                <ul class="error-messages">
-                    {% for message in messages %}
-                        <li><i class="fas fa-exclamation-triangle"></i> {{ message }}</li>
-                    {% endfor %}
-                </ul>
+            <ul class="error-messages">
+                {% for message in messages %}
+                <li><i class="fas fa-exclamation-circle"></i> {{ message }}</li>
+                {% endfor %}
+            </ul>
             {% endif %}
-        {% endwith %}
-        <form method="POST">
-            <div class="icon-input">
-                <i class="fas fa-envelope"></i>
-                <input type="email" name="email" placeholder="Email" required>
+            {% endwith %}
+
+            <form method="POST">
+                <div class="input-group">
+                    <input type="email" name="email" placeholder="Email address" required>
+                    <i class="fas fa-envelope"></i>
+                </div>
+
+                <div class="input-group">
+                    <input type="password" name="password" placeholder="Password" required>
+                    <i class="fas fa-lock"></i>
+                </div>
+
+                <div class="input-group">
+                    <select name="role" required>
+                        <option value="">Select your role...</option>
+                        <option value="student">🎓 Student</option>
+                        <option value="master">👨‍🏫 Master</option>
+                    </select>
+                    <i class="fas fa-user"></i>
+                </div>
+
+                <button type="submit" class="login-btn">
+                    <i class="fas fa-arrow-right"></i>
+                    Sign In
+                </button>
+            </form>
+
+            <div class="divider">
+                <span>New to FLUX?</span>
             </div>
-            <div class="icon-input">
-                <i class="fas fa-lock"></i>
-                <input type="password" name="password" placeholder="Password" required>
+
+            <div class="register-section">
+                <a href="{{ url_for('register') }}" class="register-link">Create an account →</a>
             </div>
-            <div class="icon-input">
-                <i class="fas fa-user-graduate"></i>
-                <select name="role" required>
-                    <option value="">Select Role</option>
-                    <option value="student">Student</option>
-                    <option value="master">Master</option>
-                </select>
-            </div>
-            <button type="submit"><i class="fas fa-sign-in-alt"></i> Login</button>
-        </form>
-        <div class="register-section">
-            <p>New user? <a href="{{ url_for('register') }}" class="register-link">Register here</a></p>
         </div>
     </div>
 </body>
+
 </html>

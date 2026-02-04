@@ -1,5 +1,14 @@
+# =====================================================================
+# GEVENT MONKEY PATCHING - MUST BE AT THE ABSOLUTE TOP
+# Before ANY other imports including standard library
+# =====================================================================
+from gevent import monkey
+monkey.patch_all()
+
+# Now safe to import everything else
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from pymongo import MongoClient
 from bson import ObjectId
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -14,7 +23,32 @@ app = Flask(__name__, template_folder='templates')
 app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
 app.config['MONGO_URI'] = os.getenv('MONGO_URI')
 
-# Lazy MongoDB Connection
+# =====================================================================
+# FLASK-SOCKETIO INITIALIZATION (gevent backend)
+# =====================================================================
+socketio = SocketIO(
+    app,
+    async_mode='gevent',
+    cors_allowed_origins="*",
+    logger=False,
+    engineio_logger=False
+)
+
+# =====================================================================
+# GLOBAL STATE FOR LIVE QUIZ ARENA (in-memory, single instance)
+# =====================================================================
+# Structure: { quiz_id: { user_id: {'username': str, 'sid': str} } }
+live_players = {}
+
+# Structure: { quiz_id: { user_id: score } }
+live_scores = {}
+
+# Structure: { quiz_id: { 'current_question': int, 'started': bool, 'master_id': str } }
+live_quiz_state = {}
+
+# =====================================================================
+# LAZY MONGODB CONNECTION
+# =====================================================================
 client = None
 db = None
 
@@ -23,7 +57,6 @@ def get_db():
     if client is None:
         mongo_uri = app.config['MONGO_URI']
         if not mongo_uri:
-            # This ensures we get a visible error if env var is missing
             raise ValueError("MONGO_URI not set. Check environment variables.")
         client = MongoClient(
             mongo_uri,
@@ -39,7 +72,9 @@ def get_collections():
     db = get_db()
     return db['users'], db['quizzes'], db['results']
 
-# Flask-Login Setup
+# =====================================================================
+# FLASK-LOGIN SETUP
+# =====================================================================
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -65,7 +100,398 @@ def load_user(user_id):
 def internal_server_error(e):
     return render_template('500.html', error=e), 500
 
-# Routes
+# =====================================================================
+# SOCKETIO EVENT HANDLERS
+# =====================================================================
+@socketio.on('connect')
+def handle_connect():
+    print(f"[SocketIO] Client connected: {request.sid}")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print(f"[SocketIO] Client disconnected: {request.sid}")
+    # Clean up player from any live quiz rooms
+    for quiz_id in list(live_players.keys()):
+        players = live_players.get(quiz_id, {})
+        for user_id, info in list(players.items()):
+            if info.get('sid') == request.sid:
+                del live_players[quiz_id][user_id]
+                # Broadcast updated player list
+                emit('player_list', {
+                    'players': [
+                        {'user_id': uid, 'username': p['username']}
+                        for uid, p in live_players.get(quiz_id, {}).items()
+                    ]
+                }, room=f"quiz_{quiz_id}")
+                print(f"[SocketIO] Removed {info['username']} from quiz {quiz_id}")
+
+@socketio.on('join_lobby')
+def handle_join_lobby(data):
+    """Handle player joining a live quiz lobby"""
+    quiz_id = data.get('quiz_id')
+    user_id = data.get('user_id')
+    username = data.get('username')
+    
+    if not quiz_id or not user_id or not username:
+        emit('error', {'message': 'Missing required data'})
+        return
+    
+    room = f"quiz_{quiz_id}"
+    
+    # Initialize quiz in live_players if not exists
+    if quiz_id not in live_players:
+        live_players[quiz_id] = {}
+    
+    # Check if this is a rejoin (player was previously in this quiz)
+    is_rejoin = user_id in live_players.get(quiz_id, {})
+    previous_score = 0
+    if quiz_id in live_scores and user_id in live_scores[quiz_id]:
+        previous_score = live_scores[quiz_id][user_id]
+    
+    # Add player to the room
+    join_room(room)
+    live_players[quiz_id][user_id] = {
+        'username': username,
+        'sid': request.sid
+    }
+    
+    # Initialize or keep existing score for this player
+    if quiz_id not in live_scores:
+        live_scores[quiz_id] = {}
+    if user_id not in live_scores[quiz_id]:
+        live_scores[quiz_id][user_id] = 0
+    
+    # Check if quiz is already in progress (for rejoin support)
+    quiz_state = live_quiz_state.get(quiz_id, {})
+    is_quiz_started = quiz_state.get('started', False)
+    
+    if is_rejoin:
+        print(f"[SocketIO] {username} REJOINED quiz {quiz_id} (score: {previous_score})")
+    else:
+        print(f"[SocketIO] {username} joined lobby for quiz {quiz_id}")
+    
+    # Broadcast updated player list to everyone in the room
+    emit('player_list', {
+        'players': [
+            {'user_id': uid, 'username': p['username']}
+            for uid, p in live_players[quiz_id].items()
+        ]
+    }, room=room)
+    
+    # Confirm join to the player with rejoin info
+    emit('joined', {
+        'message': 'You rejoined the quiz' if is_rejoin else 'You joined the lobby',
+        'quiz_id': quiz_id,
+        'is_rejoin': is_rejoin,
+        'quiz_started': is_quiz_started,
+        'current_score': previous_score
+    })
+
+@socketio.on('leave_lobby')
+def handle_leave_lobby(data):
+    """Handle player leaving the lobby"""
+    quiz_id = data.get('quiz_id')
+    user_id = data.get('user_id')
+    
+    if quiz_id and user_id:
+        room = f"quiz_{quiz_id}"
+        leave_room(room)
+        
+        if quiz_id in live_players and user_id in live_players[quiz_id]:
+            username = live_players[quiz_id][user_id].get('username', 'Unknown')
+            del live_players[quiz_id][user_id]
+            print(f"[SocketIO] {username} left lobby for quiz {quiz_id}")
+            
+            # Broadcast updated player list
+            emit('player_list', {
+                'players': [
+                    {'user_id': uid, 'username': p['username']}
+                    for uid, p in live_players.get(quiz_id, {}).items()
+                ]
+            }, room=room)
+
+@socketio.on('kick_player')
+def handle_kick_player(data):
+    """Handle master kicking a player from the lobby"""
+    quiz_id = data.get('quiz_id')
+    master_id = data.get('master_id')
+    target_user_id = data.get('target_user_id')
+    
+    if not quiz_id or not master_id or not target_user_id:
+        emit('error', {'message': 'Missing data'})
+        return
+    
+    # Verify requester is the master
+    state = live_quiz_state.get(quiz_id, {})
+    if state.get('master_id') != master_id:
+        emit('error', {'message': 'Only the quiz master can kick players'})
+        return
+    
+    room = f"quiz_{quiz_id}"
+    
+    # Find and remove the target player
+    if quiz_id in live_players and target_user_id in live_players[quiz_id]:
+        player_info = live_players[quiz_id][target_user_id]
+        player_sid = player_info.get('sid')
+        username = player_info.get('username', 'Unknown')
+        
+        # Remove from data structures
+        del live_players[quiz_id][target_user_id]
+        if quiz_id in live_scores and target_user_id in live_scores[quiz_id]:
+            del live_scores[quiz_id][target_user_id]
+        
+        # Notify the kicked player
+        if player_sid:
+            socketio.emit('kicked', {'message': 'You have been removed from this quiz'}, room=player_sid)
+        
+        print(f"[SocketIO] {username} was kicked from quiz {quiz_id} by master")
+        
+        # Broadcast updated player list
+        emit('player_list', {
+            'players': [
+                {'user_id': uid, 'username': p['username']}
+                for uid, p in live_players.get(quiz_id, {}).items()
+            ]
+        }, room=room)
+        
+        emit('player_kicked', {'username': username}, room=room)
+
+@socketio.on('start_quiz')
+def handle_start_quiz(data):
+    """Handle master starting the live quiz"""
+    quiz_id = data.get('quiz_id')
+    user_id = data.get('user_id')
+    
+    if not quiz_id or not user_id:
+        emit('error', {'message': 'Missing data'})
+        return
+    
+    # Verify user is the master
+    state = live_quiz_state.get(quiz_id, {})
+    if state.get('master_id') != user_id:
+        emit('error', {'message': 'Only the quiz master can start the quiz'})
+        return
+    
+    # Check if already started
+    if state.get('started'):
+        emit('error', {'message': 'Quiz already started'})
+        return
+    
+    # Mark as started
+    live_quiz_state[quiz_id]['started'] = True
+    live_quiz_state[quiz_id]['current_question'] = 0
+    
+    room = f"quiz_{quiz_id}"
+    print(f"[SocketIO] Quiz {quiz_id} started by master {user_id}")
+    
+    # Notify all players to redirect to live quiz page
+    emit('quiz_started', {
+        'quiz_id': quiz_id,
+        'message': 'Quiz is starting!'
+    }, room=room)
+    
+    # Start sending questions after a short delay (give time to redirect)
+    socketio.start_background_task(send_questions_task, quiz_id)
+
+def send_questions_task(quiz_id):
+    """Background task to send questions one by one with timer"""
+    import time
+    
+    _, quizzes_col, _ = get_collections()
+    quiz = quizzes_col.find_one({'_id': ObjectId(quiz_id)})
+    
+    if not quiz:
+        print(f"[SocketIO] Quiz {quiz_id} not found")
+        return
+    
+    questions = quiz.get('questions', [])
+    room = f"quiz_{quiz_id}"
+    
+    # Wait for players to load the live quiz page
+    socketio.sleep(3)
+    
+    for idx, question in enumerate(questions):
+        # Check if quiz was cancelled
+        if quiz_id not in live_quiz_state or not live_quiz_state[quiz_id].get('started'):
+            break
+        
+        live_quiz_state[quiz_id]['current_question'] = idx
+        
+        # Get time for this specific question (default 30 seconds)
+        time_for_question = question.get('time', 30)
+        
+        # Prepare question data (don't send the answer!)
+        question_data = {
+            'index': idx,
+            'total': len(questions),
+            'text': question['text'],
+            'type': question['type'],
+            'points': question.get('points', 1),
+            'time_limit': time_for_question
+        }
+        
+        # Add options for MCQ
+        if question['type'] == 'mcq':
+            question_data['options'] = question.get('options', [])
+        
+        print(f"[SocketIO] Sending question {idx + 1}/{len(questions)} for quiz {quiz_id} ({time_for_question}s)")
+        
+        # Broadcast question to all players
+        socketio.emit('new_question', question_data, room=room)
+        
+        # Wait for this question's time limit
+        socketio.sleep(time_for_question)
+        
+        # Broadcast time up with correct answer revealed
+        socketio.emit('question_time_up', {
+            'index': idx,
+            'correct_answer': question.get('answer'),
+            'question_type': question.get('type')
+        }, room=room)
+        
+        # Short pause between questions
+        socketio.sleep(2)
+    
+    # Quiz ended - mark as stopped first, then save results
+    if quiz_id in live_quiz_state:
+        live_quiz_state[quiz_id]['started'] = False
+    
+    socketio.emit('quiz_ended', {'quiz_id': quiz_id}, room=room)
+    print(f"[SocketIO] Quiz {quiz_id} ended")
+    
+    # Save results to MongoDB (this also cleans up state)
+    save_live_quiz_results(quiz_id, quiz)
+
+def save_live_quiz_results(quiz_id, quiz):
+    """Save all player results from live quiz to MongoDB"""
+    users_col, _, results_col = get_collections()
+    
+    scores = live_scores.get(quiz_id, {})
+    players = live_players.get(quiz_id, {})
+    
+    if not scores:
+        print(f"[SocketIO] No scores to save for quiz {quiz_id}")
+        return
+    
+    # Calculate total possible points
+    total_possible = sum(q.get('points', 1) for q in quiz.get('questions', []))
+    
+    saved_count = 0
+    for user_id, score in scores.items():
+        player_info = players.get(user_id, {})
+        username = player_info.get('username', 'Unknown')
+        
+        # Calculate percentage
+        percentage = round((score / total_possible * 100), 1) if total_possible > 0 else 0
+        
+        # Create result document (matching existing results structure)
+        result_doc = {
+            'quiz_id': ObjectId(quiz_id),
+            'quiz_title': quiz.get('title', 'Unknown Quiz'),
+            'student_id': ObjectId(user_id),
+            'student_name': username,
+            'score': score,
+            'total_possible': total_possible,
+            'percentage': percentage,
+            'mode': 'live_arena',  # Mark as live arena result
+            'date': datetime.now()
+        }
+        
+        try:
+            results_col.insert_one(result_doc)
+            saved_count += 1
+            print(f"[SocketIO] Saved result for {username}: {score}/{total_possible} ({percentage}%)")
+        except Exception as e:
+            print(f"[SocketIO] Error saving result for {username}: {e}")
+    
+    print(f"[SocketIO] Saved {saved_count} results for quiz {quiz_id}")
+    
+    # Clean up in-memory state for this quiz
+    if quiz_id in live_players:
+        del live_players[quiz_id]
+    if quiz_id in live_scores:
+        del live_scores[quiz_id]
+    if quiz_id in live_quiz_state:
+        del live_quiz_state[quiz_id]
+
+@socketio.on('submit_answer')
+def handle_submit_answer(data):
+    """Handle player submitting an answer"""
+    quiz_id = data.get('quiz_id')
+    user_id = data.get('user_id')
+    question_index = data.get('question_index')
+    answer = data.get('answer', '')
+    
+    if not all([quiz_id, user_id, question_index is not None]):
+        emit('error', {'message': 'Missing data'})
+        return
+    
+    # Get the quiz and question
+    _, quizzes_col, _ = get_collections()
+    quiz = quizzes_col.find_one({'_id': ObjectId(quiz_id)})
+    
+    if not quiz:
+        emit('error', {'message': 'Quiz not found'})
+        return
+    
+    questions = quiz.get('questions', [])
+    if question_index < 0 or question_index >= len(questions):
+        emit('error', {'message': 'Invalid question index'})
+        return
+    
+    question = questions[question_index]
+    correct_answer = question.get('answer', '')
+    q_type = question.get('type', 'mcq')
+    points = question.get('points', 1)
+    
+    # Check correctness based on question type
+    is_correct = False
+    if q_type == 'tf':
+        is_correct = str(correct_answer).strip().upper() == str(answer).strip().upper()
+    elif q_type == 'mcq':
+        is_correct = str(correct_answer).strip() == str(answer).strip()
+    elif q_type == 'short':
+        is_correct = str(answer).strip().lower() == str(correct_answer).strip().lower()
+    
+    # Update score
+    if quiz_id not in live_scores:
+        live_scores[quiz_id] = {}
+    if user_id not in live_scores[quiz_id]:
+        live_scores[quiz_id][user_id] = 0
+    
+    if is_correct:
+        live_scores[quiz_id][user_id] += points
+        print(f"[SocketIO] {user_id} answered correctly! +{points} points")
+    else:
+        print(f"[SocketIO] {user_id} answered incorrectly")
+    
+    room = f"quiz_{quiz_id}"
+    
+    # Send score update to the player who submitted
+    emit('score_update', {
+        'user_id': user_id,
+        'score': live_scores[quiz_id][user_id],
+        'correct': is_correct,
+        'points_earned': points if is_correct else 0
+    })
+    
+    # Broadcast live leaderboard to all players
+    leaderboard = []
+    for uid, score in sorted(live_scores.get(quiz_id, {}).items(), key=lambda x: x[1], reverse=True):
+        player_info = live_players.get(quiz_id, {}).get(uid, {})
+        leaderboard.append({
+            'user_id': uid,
+            'username': player_info.get('username', 'Unknown'),
+            'score': score
+        })
+    
+    socketio.emit('live_leaderboard', {
+        'leaderboard': leaderboard[:10]  # Top 10
+    }, room=room)
+
+# =====================================================================
+# HTTP ROUTES
+# =====================================================================
 @app.route('/')
 def index():
     return redirect(url_for('login'))
@@ -157,16 +583,27 @@ def create_quiz():
 
             if q_points < 1:
                 q_points = 1
+            
+            # Parse time per question (seconds)
+            try:
+                q_time = int(request.form.get(f'q_time_{i}', 30))
+            except ValueError:
+                q_time = 30
+            
+            if q_time < 5:
+                q_time = 5
+            elif q_time > 120:
+                q_time = 120
 
-            # For TF questions, ensure answer is stored as uppercase "TRUE" or "FALSE"
             if q_type == 'tf':
-                q_answer = q_answer.upper()  # Normalize to "TRUE" or "FALSE"
+                q_answer = q_answer.upper()
             
             q = {
                 'type': q_type,
                 'text': q_text,
                 'answer': q_answer,
-                'points': q_points
+                'points': q_points,
+                'time': q_time
             }
 
             if q_type == 'mcq':
@@ -209,7 +646,6 @@ def create_quiz():
 @app.route('/quizzes')
 @login_required
 def quizzes():
-    # Renamed from list_quizzes to quizzes to match url_for('quizzes') usage pattern
     _, quizzes_col, _ = get_collections()
     if current_user.role == 'master':
         quiz_list = list(quizzes_col.find({'createdBy': ObjectId(current_user.id)}).sort('date', -1))
@@ -220,6 +656,182 @@ def quizzes():
         quiz['_id'] = str(quiz['_id'])
         
     return render_template('quizzes.html', quizzes=quiz_list, user=current_user)
+
+# =====================================================================
+# LIVE QUIZ ARENA ROUTES
+# =====================================================================
+@app.route('/lobby/<quiz_id>')
+@login_required
+def lobby(quiz_id):
+    """Live quiz lobby - master can start, students can join"""
+    _, quizzes_col, _ = get_collections()
+    
+    try:
+        quiz = quizzes_col.find_one({'_id': ObjectId(quiz_id)})
+    except:
+        flash('Invalid quiz ID')
+        return redirect(url_for('quizzes'))
+    
+    if not quiz:
+        flash('Quiz not found')
+        return redirect(url_for('quizzes'))
+    
+    # Check if user is the master (creator) of this quiz
+    is_master = str(quiz.get('createdBy')) == current_user.id
+    
+    # Initialize quiz state if not exists
+    if quiz_id not in live_quiz_state:
+        live_quiz_state[quiz_id] = {
+            'started': False,
+            'current_question': 0,
+            'master_id': str(quiz.get('createdBy'))
+        }
+    
+    quiz['_id'] = str(quiz['_id'])
+    
+    return render_template('lobby.html', 
+                           quiz=quiz, 
+                           user=current_user, 
+                           is_master=is_master,
+                           quiz_state=live_quiz_state.get(quiz_id, {}))
+
+@app.route('/live_quiz/<quiz_id>')
+@login_required
+def live_quiz(quiz_id):
+    """Live quiz gameplay page - receives real-time questions"""
+    _, quizzes_col, _ = get_collections()
+    
+    try:
+        quiz = quizzes_col.find_one({'_id': ObjectId(quiz_id)})
+    except:
+        flash('Invalid quiz ID')
+        return redirect(url_for('quizzes'))
+    
+    if not quiz:
+        flash('Quiz not found')
+        return redirect(url_for('quizzes'))
+    
+    # Check if quiz has started
+    state = live_quiz_state.get(quiz_id, {})
+    if not state.get('started'):
+        flash('This quiz has not started yet')
+        return redirect(url_for('lobby', quiz_id=quiz_id))
+    
+    is_master = str(quiz.get('createdBy')) == current_user.id
+    quiz['_id'] = str(quiz['_id'])
+    
+    return render_template('live_quiz.html', 
+                           quiz=quiz, 
+                           user=current_user, 
+                           is_master=is_master)
+
+@app.route('/arena_standings/<quiz_id>')
+@login_required
+def arena_standings(quiz_id):
+    """Final standings/podium page after live quiz ends"""
+    _, quizzes_col, results_col = get_collections()
+    
+    try:
+        quiz = quizzes_col.find_one({'_id': ObjectId(quiz_id)})
+    except:
+        flash('Invalid quiz ID')
+        return redirect(url_for('quizzes'))
+    
+    if not quiz:
+        flash('Quiz not found')
+        return redirect(url_for('quizzes'))
+    
+    # Get all results for this quiz from live arena
+    results = list(results_col.find({
+        'quiz_id': ObjectId(quiz_id),
+        'mode': 'live_arena'
+    }).sort('score', -1))
+    
+    # Calculate total possible
+    total_possible = sum(q.get('points', 1) for q in quiz.get('questions', []))
+    
+    # Prepare standings data
+    standings = []
+    for idx, res in enumerate(results):
+        standings.append({
+            'rank': idx + 1,
+            'username': res.get('student_name', 'Unknown'),
+            'score': res.get('score', 0),
+            'total_possible': total_possible,
+            'percentage': res.get('percentage', 0),
+            'user_id': str(res.get('student_id', ''))
+        })
+    
+    # Get top 3 for podium
+    podium = standings[:3] if len(standings) >= 3 else standings
+    
+    is_master = str(quiz.get('createdBy')) == current_user.id
+    quiz['_id'] = str(quiz['_id'])
+    
+    return render_template('arena_standings.html',
+                           quiz=quiz,
+                           podium=podium,
+                           standings=standings,
+                           user=current_user,
+                           is_master=is_master)
+
+@app.route('/arena_history')
+@login_required
+def arena_history():
+    """Show history of all arena sessions"""
+    _, quizzes_col, results_col = get_collections()
+    
+    # Get unique quiz IDs from live arena results
+    pipeline = [
+        {'$match': {'mode': 'live_arena'}},
+        {'$group': {
+            '_id': '$quiz_id',
+            'sessions': {'$push': {
+                'student_name': '$student_name',
+                'score': '$score',
+                'percentage': '$percentage',
+                'date': '$date'
+            }},
+            'player_count': {'$sum': 1},
+            'avg_score': {'$avg': '$percentage'},
+            'last_played': {'$max': '$date'}
+        }},
+        {'$sort': {'last_played': -1}},
+        {'$limit': 50}
+    ]
+    
+    arena_sessions = list(results_col.aggregate(pipeline))
+    
+    # Enrich with quiz details
+    for session in arena_sessions:
+        quiz = quizzes_col.find_one({'_id': session['_id']})
+        if quiz:
+            session['quiz_title'] = quiz.get('title', 'Unknown Quiz')
+            session['quiz_subject'] = quiz.get('subject', 'N/A')
+            session['question_count'] = len(quiz.get('questions', []))
+            if current_user.role == 'master':
+                # Masters see all sessions for their quizzes
+                session['can_view'] = str(quiz.get('createdBy')) == current_user.id
+            else:
+                # Students see sessions they participated in
+                session['can_view'] = any(
+                    s.get('student_name') == current_user.username 
+                    for s in session.get('sessions', [])
+                )
+        else:
+            session['quiz_title'] = 'Deleted Quiz'
+            session['quiz_subject'] = 'N/A'
+            session['question_count'] = 0
+            session['can_view'] = False
+        
+        session['_id'] = str(session['_id'])
+    
+    # Filter to only show relevant sessions
+    arena_sessions = [s for s in arena_sessions if s.get('can_view', False)]
+    
+    return render_template('arena_history.html',
+                           sessions=arena_sessions,
+                           user=current_user)
 
 @app.route('/take_quiz/<quiz_id>')
 @login_required
@@ -275,13 +887,10 @@ def submit_quiz(quiz_id):
         
         correct = False
         if q['type'] == 'tf':
-            # TF: Compare as uppercase for consistency
             correct = str(q['answer']).strip().upper() == str(ans).strip().upper()
         elif q['type'] == 'mcq':
-            # MCQ: Exact match
             correct = str(q['answer']).strip() == str(ans).strip()
         elif q['type'] == 'short':
-            # Short answer: Case insensitive
             correct = ans.lower() == q['answer'].lower()
             
         if correct:
@@ -318,24 +927,44 @@ def my_results():
     users, quizzes_col, results_col = get_collections()
 
     if current_user.role == 'student':
-        raw_results = list(results_col.find({'user': ObjectId(current_user.id)}).sort('date', -1))
+        # Find results for both solo quiz ('user') and live arena ('student_id')
+        raw_results = list(results_col.find({
+            '$or': [
+                {'user': ObjectId(current_user.id)},
+                {'student_id': ObjectId(current_user.id)}
+            ]
+        }).sort('date', -1))
     else:
         raw_results = list(results_col.find({}).sort('date', -1))
 
     enriched_results = []
     for res in raw_results:
-        quiz = quizzes_col.find_one({'_id': res['quiz']})
-        student = users.find_one({'_id': res['user']})
+        # Handle both field naming conventions
+        quiz_id_field = res.get('quiz') or res.get('quiz_id')
+        user_id_field = res.get('user') or res.get('student_id')
+        
+        quiz = quizzes_col.find_one({'_id': quiz_id_field}) if quiz_id_field else None
+        student = users.find_one({'_id': user_id_field}) if user_id_field else None
+
+        # Get student name from result (live arena) or from user lookup
+        student_name = res.get('student_name') or (student['username'] if student else 'Unknown')
+        
+        # Get total from result - handle both 'total' and 'total_possible'
+        total = res.get('total') or res.get('total_possible', 0)
+        
+        # Get mode (solo or live_arena)
+        mode = res.get('mode', 'solo')
 
         enriched_results.append({
             '_id': str(res['_id']),
             'score': res['score'],
-            'total': res['total'],
+            'total': total,
             'percentage': res.get('percentage', 0),
             'date': res['date'],
-            'quiz_title': quiz['title'] if quiz else 'Deleted Quiz',
+            'quiz_title': res.get('quiz_title') or (quiz['title'] if quiz else 'Deleted Quiz'),
             'quiz_subject': quiz['subject'] if quiz else '',
-            'student_name': student['username'] if student else 'Unknown'
+            'student_name': student_name,
+            'mode': mode
         })
 
     return render_template('my_results.html', results=enriched_results, user=current_user)
@@ -346,9 +975,7 @@ def leaderboard():
     users, _, results_col = get_collections()
 
     pipeline = [
-        # Filter only docs that have a score
         {'$match': {'score': {'$exists': True}}},
-        # Group by user ID -> sum scores
         {'$group': {
             '_id': '$user',
             'totalScore': {'$sum': '$score'}
@@ -367,7 +994,6 @@ def leaderboard():
     for agg in agg_results:
         uid = agg['_id']
         username = 'Unknown Student'
-        # Try to resolve username
         if uid:
             try:
                 u = users.find_one({'_id': ObjectId(uid)})
@@ -429,7 +1055,6 @@ def edit_quiz(quiz_id):
             if q_points < 1:
                 q_points = 1
 
-            # For TF questions, normalize to uppercase
             if q_type == 'tf':
                 q_answer = q_answer.upper()
 
@@ -501,5 +1126,9 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+# =====================================================================
+# RUN WITH SOCKETIO (gevent backend)
+# =====================================================================
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+    print("[FLUX] Starting server with gevent backend...")
+    socketio.run(app, debug=False, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))

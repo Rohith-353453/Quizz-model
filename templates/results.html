@@ -3,92 +3,404 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Quiz Results: {{ quiz_title or 'Untitled' }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Results - FLUX</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        body {
-            font-family: Arial;
-            max-width: 700px;
-            margin: 50px auto;
-            padding: 20px;
-            background: #f4f4f4;
+        .results-page {
+            min-height: 100vh;
+            background: var(--bg-primary);
+            padding: 40px 24px 80px;
         }
 
-        .results-header {
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        /* Score Card */
+        .score-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-xl);
+            padding: 48px;
             text-align: center;
-            background: #28a745;
-            color: white;
-            padding: 20px;
-            border-radius: 8px;
+            margin-bottom: 40px;
+            position: relative;
+            overflow: hidden;
+            animation: slideUp 0.5s ease-out;
         }
 
-        .score-summary {
-            font-size: 24px;
-            font-weight: bold;
-            margin: 10px 0;
+        .score-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent), var(--surface-mint), var(--accent));
+            border-radius: 2px;
         }
 
-        .question-result {
-            border: 1px solid #ddd;
-            margin: 15px 0;
-            padding: 15px;
-            border-radius: 4px;
-            background: #fff;
+        .celebration-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
         }
 
-        .correct {
-            background: #d4edda;
-            color: #155724;
+        .score-card h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text-primary);
         }
 
-        .wrong {
-            background: #f8d7da;
-            color: #721c24;
+        .quiz-name {
+            color: var(--accent);
+            font-size: 1.1rem;
+            margin-bottom: 32px;
         }
 
-        .question-result h4 {
-            margin-top: 0;
+        .score-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 40px;
+            margin-bottom: 32px;
         }
 
-        .your-answer {
-            font-style: italic;
-            color: #666;
+        .score-circle {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: conic-gradient(var(--accent) calc(var(--percentage) * 1%),
+                    var(--bg-tertiary) calc(var(--percentage) * 1%));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
         }
 
-        a {
-            background: #007bff;
-            color: white;
-            padding: 10px 20px;
+        .score-circle::before {
+            content: '';
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            background: var(--bg-card);
+            border-radius: 50%;
+        }
+
+        .score-value {
+            position: relative;
+            z-index: 1;
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .score-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            text-align: left;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+        }
+
+        .stat-item i {
+            width: 24px;
+            text-align: center;
+        }
+
+        .stat-item.correct i {
+            color: var(--accent);
+        }
+
+        .stat-item.wrong i {
+            color: var(--error);
+        }
+
+        .stat-item span {
+            color: var(--text-secondary);
+        }
+
+        .stat-item strong {
+            color: var(--text-primary);
+            margin-left: auto;
+        }
+
+        /* Results Actions */
+        .results-actions {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 14px 28px;
+            border-radius: var(--radius-md);
             text-decoration: none;
-            border-radius: 4px;
-            display: inline-block;
-            margin-top: 20px;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all var(--transition-normal);
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
-        a:hover {
-            background: #0056b3;
+        .action-btn.primary {
+            background: var(--accent);
+            color: var(--text-on-accent);
+        }
+
+        .action-btn.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(191, 255, 0, 0.4);
+        }
+
+        .action-btn.secondary {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .action-btn.secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Detailed Results */
+        .details-section {
+            margin-top: 48px;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title i {
+            color: var(--accent);
+        }
+
+        /* Question Result Card */
+        .question-result {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            margin-bottom: 16px;
+            transition: all var(--transition-fast);
+        }
+
+        .question-result:hover {
+            border-color: var(--border-accent);
+        }
+
+        .question-result.correct {
+            border-left: 4px solid var(--accent);
+        }
+
+        .question-result.wrong {
+            border-left: 4px solid var(--error);
+        }
+
+        .result-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .result-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .result-status.correct {
+            background: rgba(191, 255, 0, 0.1);
+            color: var(--accent);
+        }
+
+        .result-status.wrong {
+            background: rgba(255, 68, 68, 0.1);
+            color: var(--error);
+        }
+
+        .question-text {
+            flex: 1;
+            font-size: 1.05rem;
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        .question-type {
+            padding: 4px 10px;
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        .answers-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .answer-box {
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+        }
+
+        .answer-box.your-answer {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .answer-box.correct-answer {
+            background: rgba(191, 255, 0, 0.05);
+            border: 1px solid rgba(191, 255, 0, 0.2);
+        }
+
+        .answer-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .answer-value {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .answer-box.correct-answer .answer-value {
+            color: var(--accent);
+        }
+
+        @media (max-width: 768px) {
+            .score-display {
+                flex-direction: column;
+            }
+
+            .answers-row {
+                grid-template-columns: 1fr;
+            }
+
+            .results-actions {
+                flex-direction: column;
+            }
+
+            .action-btn {
+                width: 100%;
+                justify-content: center;
+            }
         }
     </style>
 </head>
 
 <body>
-    <div class="results-header">
-        <h1>Quiz Completed!</h1>
-        <p>{{ quiz_title or 'Untitled Quiz' }}</p>
-        <div class="score-summary">Score: {{ score }} / {{ total }} ({{ percentage | round(1) }}%)</div>
-    </div>
+    <div class="results-page">
+        <div class="container">
+            <!-- Score Card -->
+            <div class="score-card" style="--percentage: {{ percentage }}">
+                <div class="celebration-icon">
+                    {% if percentage >= 80 %}🎉{% elif percentage >= 60 %}👍{% else %}📚{% endif %}
+                </div>
+                <h1>Quiz Completed!</h1>
+                <p class="quiz-name">{{ quiz_title or 'Untitled Quiz' }}</p>
 
-    <h3>Detailed Results</h3>
-    {% for ans in answers %}
-    <div class="question-result {{ 'correct' if ans.correct else 'wrong' }}">
-        <h4>{{ ans.question }} ({{ ans.type | upper }})</h4>
-        <p class="your-answer">Your answer: {{ ans.student_answer | default('No answer') }}</p>
-        <p>Correct answer: {{ ans.correct_answer | default('N/A') }}</p>
-        <p>{% if ans.correct %}✓ Correct!{% else %}✗ Incorrect{% endif %}</p>
-    </div>
-    {% endfor %}
+                <div class="score-display">
+                    <div class="score-circle">
+                        <span class="score-value">{{ percentage | round | int }}%</span>
+                    </div>
+                    <div class="score-stats">
+                        <div class="stat-item correct">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Correct</span>
+                            <strong>{{ score }}</strong>
+                        </div>
+                        <div class="stat-item wrong">
+                            <i class="fas fa-times-circle"></i>
+                            <span>Incorrect</span>
+                            <strong>{{ total - score }}</strong>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-list-ol" style="color: var(--text-muted);"></i>
+                            <span>Total</span>
+                            <strong>{{ total }}</strong>
+                        </div>
+                    </div>
+                </div>
 
-    <a href="{{ url_for('quizzes') }}">Take Another Quiz</a>
-    <a href="{{ url_for('my_results') }}">View All Results</a>
+                <div class="results-actions">
+                    <a href="{{ url_for('quizzes') }}" class="action-btn primary">
+                        <i class="fas fa-play"></i> Take Another Quiz
+                    </a>
+                    <a href="{{ url_for('my_results') }}" class="action-btn secondary">
+                        <i class="fas fa-history"></i> View All Results
+                    </a>
+                </div>
+            </div>
+
+            <!-- Detailed Results -->
+            <div class="details-section">
+                <h2 class="section-title">
+                    <i class="fas fa-list-check"></i> Detailed Results
+                </h2>
+
+                {% for ans in answers %}
+                <div class="question-result {{ 'correct' if ans.correct else 'wrong' }}">
+                    <div class="result-header">
+                        <span class="result-status {{ 'correct' if ans.correct else 'wrong' }}">
+                            {% if ans.correct %}
+                            <i class="fas fa-check"></i> Correct
+                            {% else %}
+                            <i class="fas fa-times"></i> Incorrect
+                            {% endif %}
+                        </span>
+                        <span class="question-type">{{ ans.type | upper }}</span>
+                    </div>
+
+                    <p class="question-text">{{ ans.question }}</p>
+
+                    <div class="answers-row">
+                        <div class="answer-box your-answer">
+                            <div class="answer-label">Your Answer</div>
+                            <div class="answer-value">{{ ans.student_answer | default('No answer') }}</div>
+                        </div>
+                        <div class="answer-box correct-answer">
+                            <div class="answer-label">Correct Answer</div>
+                            <div class="answer-value">{{ ans.correct_answer | default('N/A') }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

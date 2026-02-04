@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Quiz - {{ quiz.title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            background: var(--bg-primary);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border-subtle);
+            margin-bottom: 24px;
+        }
+
+        .quiz-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .quiz-title i {
+            color: var(--accent);
+        }
+
+        .score-display {
+            background: var(--accent);
+            color: var(--text-on-accent);
+            padding: 12px 24px;
+            border-radius: 100px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 0 20px rgba(191, 255, 0, 0.3);
+        }
+
+        /* Progress */
+        .progress-section {
+            margin-bottom: 24px;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--surface-mint));
+            transition: width 0.3s ease;
+        }
+
+        /* Question Area */
+        .question-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        /* Timer */
+        .timer-container {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .timer-circle {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            border: 4px solid var(--accent);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.8rem;
+            font-weight: 800;
+            color: var(--accent);
+            transition: all 0.3s ease;
+            box-shadow: 0 0 30px rgba(191, 255, 0, 0.2);
+        }
+
+        .timer-circle.warning {
+            border-color: #FFD700;
+            color: #FFD700;
+            animation: timerPulse 1s ease-in-out infinite;
+        }
+
+        .timer-circle.danger {
+            border-color: var(--error);
+            color: var(--error);
+            animation: timerPulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes timerPulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.08);
+            }
+        }
+
+        /* Question Card */
+        .question-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-xl);
+            padding: 48px;
+            text-align: center;
+        }
+
+        .question-number {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .question-text {
+            font-size: 1.6rem;
+            line-height: 1.5;
+            margin-bottom: 24px;
+            color: var(--text-primary);
+        }
+
+        .question-points {
+            display: inline-block;
+            background: rgba(191, 255, 0, 0.1);
+            color: var(--accent);
+            padding: 6px 16px;
+            border-radius: 100px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 32px;
+        }
+
+        /* Options */
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .option-btn {
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 20px 24px;
+            border-radius: var(--radius-md);
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            text-align: center;
+        }
+
+        .option-btn:hover:not(.selected):not(.disabled) {
+            border-color: var(--accent);
+            background: rgba(191, 255, 0, 0.05);
+            transform: translateY(-3px);
+        }
+
+        .option-btn.selected {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--text-on-accent);
+            box-shadow: 0 0 25px rgba(191, 255, 0, 0.4);
+        }
+
+        .option-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* TF Options */
+        .tf-options {
+            display: flex;
+            gap: 24px;
+            justify-content: center;
+        }
+
+        .tf-btn {
+            flex: 1;
+            max-width: 200px;
+        }
+
+        /* Short Answer */
+        .short-answer-input {
+            width: 100%;
+            max-width: 500px;
+            padding: 20px 24px;
+            border-radius: var(--radius-md);
+            border: 2px solid var(--border-subtle);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 1.1rem;
+            text-align: center;
+            margin: 0 auto;
+            display: block;
+            transition: all var(--transition-fast);
+        }
+
+        .short-answer-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .short-answer-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Waiting State */
+        .waiting-state {
+            text-align: center;
+            padding: 80px 20px;
+        }
+
+        .waiting-state h2 {
+            font-size: 2rem;
+            margin-bottom: 24px;
+        }
+
+        .waiting-state p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid var(--border-subtle);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 32px auto;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Feedback */
+        .submitted-feedback {
+            font-size: 1rem;
+            margin-top: 20px;
+            display: none;
+            font-weight: 600;
+        }
+
+        .submitted-feedback.correct {
+            color: var(--accent);
+        }
+
+        .submitted-feedback.incorrect {
+            color: var(--error);
+        }
+
+        .correct-answer-banner {
+            background: linear-gradient(135deg, var(--accent), #9AE600);
+            color: var(--text-on-accent);
+            padding: 16px 24px;
+            border-radius: var(--radius-md);
+            margin-top: 24px;
+            text-align: center;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .banner-label {
+            font-weight: 600;
+            margin-right: 8px;
+        }
+
+        .banner-answer {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        /* Live Leaderboard Sidebar */
+        .leaderboard-sidebar {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            width: 220px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            max-height: 350px;
+            overflow-y: auto;
+            z-index: 50;
+        }
+
+        .leaderboard-sidebar h4 {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .leaderboard-sidebar h4 i {
+            color: #FFD700;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 0;
+            font-size: 0.9rem;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .leaderboard-item:last-child {
+            border-bottom: none;
+        }
+
+        .leaderboard-rank {
+            width: 24px;
+            text-align: center;
+            font-weight: 700;
+            color: var(--text-muted);
+        }
+
+        .leaderboard-rank.gold {
+            color: #FFD700;
+        }
+
+        .leaderboard-rank.silver {
+            color: #C0C0C0;
+        }
+
+        .leaderboard-rank.bronze {
+            color: #CD7F32;
+        }
+
+        .leaderboard-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--text-secondary);
+        }
+
+        .leaderboard-name.you {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .leaderboard-score {
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        /* Score Popup */
+        .score-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 4rem;
+            font-weight: 800;
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+        }
+
+        .score-popup.show {
+            animation: scorePopup 1s ease-out forwards;
+        }
+
+        .score-popup.correct {
+            color: var(--accent);
+            text-shadow: 0 0 40px rgba(191, 255, 0, 0.5);
+        }
+
+        .score-popup.incorrect {
+            color: var(--error);
+        }
+
+        @keyframes scorePopup {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+
+            20% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.3);
+            }
+
+            80% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -60%) scale(0.8);
+            }
+        }
+
+        /* Results Overlay */
+        .results-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .results-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-xl);
+            padding: 60px;
+            text-align: center;
+            max-width: 450px;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        .results-card h2 {
+            font-size: 2rem;
+            margin-bottom: 24px;
+        }
+
+        .final-score {
+            font-size: 5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent), var(--surface-mint));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 12px;
+        }
+
+        .results-card>p {
+            color: var(--text-muted);
+            margin-bottom: 32px;
+        }
+
+        .results-actions {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 16px 28px;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all var(--transition-normal);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: var(--text-on-accent);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(191, 255, 0, 0.4);
+        }
+
+        .btn-gold {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: #000;
+        }
+
+        .btn-gold:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+        }
+
+        @media (max-width: 900px) {
+            .leaderboard-sidebar {
+                display: none;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .options-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .question-card {
+                padding: 32px 24px;
+            }
+
+            .question-text {
+                font-size: 1.3rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="quiz-title"><i class="fas fa-gamepad"></i> {{ quiz.title }}</div>
+            <div class="score-display"><i class="fas fa-star"></i> Score: <span id="scoreValue">0</span></div>
+        </div>
+
+        <div class="progress-section">
+            <div class="progress-info">
+                <span>Question <span id="currentQ">0</span> of <span id="totalQ">?</span></span>
+                <span id="questionType"></span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <div class="question-area">
+            <!-- Waiting State -->
+            <div class="waiting-state" id="waitingState">
+                <h2>🚀 Get Ready!</h2>
+                <div class="spinner"></div>
+                <p>First question coming up...</p>
+            </div>
+
+            <!-- Question Display -->
+            <div class="question-card" id="questionCard" style="display: none;">
+                <div class="timer-container">
+                    <div class="timer-circle" id="timer">30</div>
+                </div>
+
+                <p class="question-number">Question <span id="qNum">1</span></p>
+                <h2 class="question-text" id="questionText">Loading question...</h2>
+                <span class="question-points" id="questionPoints">1 point</span>
+
+                <!-- MCQ Options -->
+                <div class="options-grid" id="mcqOptions" style="display: none;"></div>
+
+                <!-- TF Options -->
+                <div class="tf-options" id="tfOptions" style="display: none;">
+                    <button class="option-btn tf-btn" onclick="selectAnswer('TRUE')">TRUE</button>
+                    <button class="option-btn tf-btn" onclick="selectAnswer('FALSE')">FALSE</button>
+                </div>
+
+                <!-- Short Answer -->
+                <div id="shortAnswerContainer" style="display: none;">
+                    <input type="text" class="short-answer-input" id="shortAnswerInput"
+                        placeholder="Type your answer..." onkeypress="if(event.key === 'Enter') submitShortAnswer()">
+                </div>
+
+                <p class="submitted-feedback" id="submittedFeedback">✓ Answer submitted!</p>
+                <div class="correct-answer-banner" id="correctAnswerBanner" style="display: none;">
+                    <span class="banner-label">✓ Correct Answer:</span>
+                    <span class="banner-answer" id="correctAnswerText"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Leaderboard Sidebar -->
+    <div class="leaderboard-sidebar" id="leaderboardSidebar">
+        <h4><i class="fas fa-trophy"></i> Live Rankings</h4>
+        <div id="leaderboardList">
+            <div class="leaderboard-item">
+                <span class="leaderboard-rank">-</span>
+                <span class="leaderboard-name">Waiting...</span>
+                <span class="leaderboard-score">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Score Popup -->
+    <div class="score-popup" id="scorePopup"></div>
+
+    <!-- Results Overlay -->
+    <div class="results-overlay" id="resultsOverlay">
+        <div class="results-card">
+            <h2>🎉 Quiz Complete!</h2>
+            <div class="final-score" id="finalScore">0</div>
+            <p>points earned</p>
+            <div class="results-actions">
+                <a href="{{ url_for('arena_standings', quiz_id=quiz._id) }}" class="btn btn-gold">
+                    <i class="fas fa-trophy"></i> View Podium
+                </a>
+                <a href="{{ url_for('quizzes') }}" class="btn btn-primary">
+                    <i class="fas fa-arrow-left"></i> Back to Quizzes
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const quizId = "{{ quiz._id }}";
+        const userId = "{{ user.id }}";
+        const username = "{{ user.username }}";
+        const isMaster = {{ 'true' if is_master else 'false' }};
+
+        let currentScore = 0;
+        let currentQuestionIndex = -1;
+        let selectedAnswer = null;
+        let timerInterval = null;
+        let timeLeft = 0;
+        let answerSubmitted = false;
+
+        const socket = io();
+
+        socket.on('connect', function () {
+            console.log('[SocketIO] Connected to live quiz');
+            socket.emit('join_lobby', {
+                quiz_id: quizId,
+                user_id: userId,
+                username: username
+            });
+        });
+
+        socket.on('joined', function (data) {
+            console.log('[SocketIO] Joined:', data);
+            if (data.is_rejoin && data.current_score > 0) {
+                currentScore = data.current_score;
+                document.getElementById('scoreValue').textContent = currentScore;
+                console.log('[SocketIO] Restored score:', currentScore);
+            }
+        });
+
+        socket.on('new_question', function (data) {
+            console.log('[SocketIO] New question:', data);
+            displayQuestion(data);
+        });
+
+        socket.on('question_time_up', function (data) {
+            console.log('[SocketIO] Time up for question:', data.index);
+            handleTimeUp();
+            if (data.correct_answer) {
+                showCorrectAnswer(data.correct_answer, data.question_type);
+            }
+        });
+
+        socket.on('score_update', function (data) {
+            console.log('[SocketIO] Score update:', data);
+            if (data.user_id === userId) {
+                currentScore = data.score;
+                document.getElementById('scoreValue').textContent = currentScore;
+
+                const feedback = document.getElementById('submittedFeedback');
+                if (data.correct) {
+                    feedback.textContent = '✓ Correct! +' + data.points_earned + ' points';
+                    feedback.className = 'submitted-feedback correct';
+                    showScorePopup('+' + data.points_earned, true);
+                } else {
+                    feedback.textContent = '✗ Incorrect';
+                    feedback.className = 'submitted-feedback incorrect';
+                    showScorePopup('✗', false);
+                }
+                feedback.style.display = 'block';
+            }
+        });
+
+        socket.on('live_leaderboard', function (data) {
+            console.log('[SocketIO] Leaderboard update:', data);
+            updateLeaderboard(data.leaderboard);
+        });
+
+        socket.on('quiz_ended', function (data) {
+            console.log('[SocketIO] Quiz ended');
+            showResults();
+        });
+
+        function showScorePopup(text, isCorrect) {
+            const popup = document.getElementById('scorePopup');
+            popup.textContent = text;
+            popup.className = 'score-popup show ' + (isCorrect ? 'correct' : 'incorrect');
+            setTimeout(() => { popup.className = 'score-popup'; }, 1000);
+        }
+
+        function showCorrectAnswer(answer, questionType) {
+            const banner = document.getElementById('correctAnswerBanner');
+            const answerText = document.getElementById('correctAnswerText');
+            let displayAnswer = answer;
+            if (questionType === 'TF') {
+                displayAnswer = answer.toUpperCase() === 'TRUE' ? 'TRUE' : 'FALSE';
+            }
+            answerText.textContent = displayAnswer;
+            banner.style.display = 'block';
+        }
+
+        function updateLeaderboard(leaderboard) {
+            const container = document.getElementById('leaderboardList');
+            if (leaderboard.length === 0) {
+                container.innerHTML = '<div class="leaderboard-item"><span class="leaderboard-name">No scores yet</span></div>';
+                return;
+            }
+            container.innerHTML = leaderboard.map(function (player, idx) {
+                const rankClass = idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : '';
+                const isYou = player.user_id === userId;
+                return '<div class="leaderboard-item">' +
+                    '<span class="leaderboard-rank ' + rankClass + '">' + (idx + 1) + '</span>' +
+                    '<span class="leaderboard-name ' + (isYou ? 'you' : '') + '">' + player.username + (isYou ? ' (You)' : '') + '</span>' +
+                    '<span class="leaderboard-score">' + player.score + '</span></div>';
+            }).join('');
+        }
+
+        function displayQuestion(data) {
+            document.getElementById('waitingState').style.display = 'none';
+            document.getElementById('questionCard').style.display = 'block';
+            document.getElementById('correctAnswerBanner').style.display = 'none';
+
+            currentQuestionIndex = data.index;
+            selectedAnswer = null;
+            answerSubmitted = false;
+
+            document.getElementById('qNum').textContent = data.index + 1;
+            document.getElementById('currentQ').textContent = data.index + 1;
+            document.getElementById('totalQ').textContent = data.total;
+            document.getElementById('questionText').textContent = data.text;
+            document.getElementById('questionPoints').textContent = data.points + ' point' + (data.points > 1 ? 's' : '');
+            document.getElementById('questionType').textContent = data.type.toUpperCase();
+            document.getElementById('submittedFeedback').style.display = 'none';
+
+            const progress = ((data.index + 1) / data.total) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+
+            hideAllInputs();
+
+            if (data.type === 'mcq') {
+                showMCQOptions(data.options);
+            } else if (data.type === 'tf') {
+                document.getElementById('tfOptions').style.display = 'flex';
+                resetTFButtons();
+            } else if (data.type === 'short') {
+                document.getElementById('shortAnswerContainer').style.display = 'block';
+                document.getElementById('shortAnswerInput').value = '';
+                document.getElementById('shortAnswerInput').disabled = false;
+                document.getElementById('shortAnswerInput').focus();
+            }
+
+            startTimer(data.time_limit);
+        }
+
+        function hideAllInputs() {
+            document.getElementById('mcqOptions').style.display = 'none';
+            document.getElementById('tfOptions').style.display = 'none';
+            document.getElementById('shortAnswerContainer').style.display = 'none';
+        }
+
+        function showMCQOptions(options) {
+            const container = document.getElementById('mcqOptions');
+            container.style.display = 'grid';
+            container.innerHTML = options.map((opt, idx) =>
+                `<button class="option-btn" onclick="selectAnswer('${opt.replace(/'/g, "\\'")}')">${opt}</button>`
+            ).join('');
+        }
+
+        function resetTFButtons() {
+            document.querySelectorAll('#tfOptions .option-btn').forEach(btn => {
+                btn.classList.remove('selected', 'disabled');
+            });
+        }
+
+        function selectAnswer(answer) {
+            if (answerSubmitted) return;
+            selectedAnswer = answer;
+
+            document.querySelectorAll('.option-btn').forEach(btn => {
+                btn.classList.remove('selected');
+                if (btn.textContent.trim() === answer || btn.textContent.trim() === answer.replace(/\\'/g, "'")) {
+                    btn.classList.add('selected');
+                }
+            });
+
+            submitAnswer();
+        }
+
+        function submitShortAnswer() {
+            const input = document.getElementById('shortAnswerInput');
+            if (input.value.trim()) {
+                selectedAnswer = input.value.trim();
+                submitAnswer();
+            }
+        }
+
+        function submitAnswer() {
+            if (answerSubmitted || selectedAnswer === null) return;
+            answerSubmitted = true;
+
+            socket.emit('submit_answer', {
+                quiz_id: quizId,
+                user_id: userId,
+                question_index: currentQuestionIndex,
+                answer: selectedAnswer
+            });
+
+            document.getElementById('submittedFeedback').style.display = 'block';
+
+            document.querySelectorAll('.option-btn').forEach(btn => {
+                btn.classList.add('disabled');
+            });
+            document.getElementById('shortAnswerInput').disabled = true;
+        }
+
+        function startTimer(seconds) {
+            if (timerInterval) clearInterval(timerInterval);
+            timeLeft = seconds;
+            const timerEl = document.getElementById('timer');
+            updateTimerDisplay();
+
+            timerInterval = setInterval(function () {
+                timeLeft--;
+                updateTimerDisplay();
+                if (timeLeft <= 0) clearInterval(timerInterval);
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const timerEl = document.getElementById('timer');
+            timerEl.textContent = timeLeft;
+            timerEl.classList.remove('warning', 'danger');
+            if (timeLeft <= 5) { timerEl.classList.add('danger'); }
+            else if (timeLeft <= 10) { timerEl.classList.add('warning'); }
+        }
+
+        function handleTimeUp() {
+            if (timerInterval) clearInterval(timerInterval);
+            if (selectedAnswer && !answerSubmitted) submitAnswer();
+            document.querySelectorAll('.option-btn').forEach(btn => { btn.classList.add('disabled'); });
+            document.getElementById('shortAnswerInput').disabled = true;
+        }
+
+        function showResults() {
+            document.getElementById('finalScore').textContent = currentScore;
+            document.getElementById('resultsOverlay').style.display = 'flex';
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arena History - FLUX</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .arena-page {
+            min-height: 100vh;
+            background:
+                radial-gradient(ellipse at top center, rgba(191, 255, 0, 0.05) 0%, transparent 50%),
+                var(--bg-primary);
+            padding: 40px 24px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .page-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            margin-bottom: 24px;
+            transition: color var(--transition-fast);
+        }
+
+        .back-link:hover {
+            color: var(--accent);
+        }
+
+        .page-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent), var(--surface-mint));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 12px;
+        }
+
+        .page-subtitle {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        /* Sessions Grid */
+        .sessions-grid {
+            display: grid;
+            gap: 24px;
+        }
+
+        .session-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            transition: all var(--transition-normal);
+        }
+
+        .session-card:hover {
+            border-color: var(--border-accent);
+            box-shadow: var(--shadow-glow);
+            transform: translateY(-4px);
+        }
+
+        .session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .quiz-info h3 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .quiz-meta {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .session-stats {
+            display: flex;
+            gap: 16px;
+        }
+
+        .stat {
+            text-align: center;
+            background: var(--bg-tertiary);
+            padding: 16px 24px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-subtle);
+            min-width: 100px;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .session-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .session-date {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .view-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: var(--accent);
+            color: var(--text-on-accent);
+            text-decoration: none;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            transition: all var(--transition-normal);
+        }
+
+        .view-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 25px rgba(191, 255, 0, 0.4);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state i {
+            font-size: 5rem;
+            margin-bottom: 24px;
+            opacity: 0.3;
+            color: var(--accent);
+        }
+
+        .empty-state h2 {
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        /* Actions */
+        .page-actions {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 48px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 16px 32px;
+            border-radius: var(--radius-md);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all var(--transition-normal);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .action-btn.primary {
+            background: var(--accent);
+            color: var(--text-on-accent);
+        }
+
+        .action-btn.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(191, 255, 0, 0.4);
+        }
+
+        .action-btn.secondary {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .action-btn.secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        @media (max-width: 768px) {
+            .session-header {
+                flex-direction: column;
+            }
+
+            .session-stats {
+                width: 100%;
+                justify-content: space-around;
+            }
+
+            .session-footer {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .view-btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="arena-page">
+        <div class="container">
+            <a href="{{ url_for('dashboard') }}" class="back-link">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+
+            <div class="page-header">
+                <h1 class="page-title">🎮 Arena History</h1>
+                <p class="page-subtitle">View past live quiz arena sessions and standings</p>
+            </div>
+
+            {% if sessions and sessions|length > 0 %}
+            <div class="sessions-grid">
+                {% for session in sessions %}
+                <div class="session-card">
+                    <div class="session-header">
+                        <div class="quiz-info">
+                            <h3>{{ session.quiz_title }}</h3>
+                            <span class="quiz-meta">
+                                <i class="fas fa-book"></i>
+                                {{ session.quiz_subject }} • {{ session.question_count }} questions
+                            </span>
+                        </div>
+                        <div class="session-stats">
+                            <div class="stat">
+                                <div class="stat-value">{{ session.player_count }}</div>
+                                <div class="stat-label">Players</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-value">{{ "%.0f"|format(session.avg_score) }}%</div>
+                                <div class="stat-label">Avg Score</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="session-footer">
+                        <div class="session-date">
+                            <i class="fas fa-clock"></i>
+                            {{ session.last_played.strftime('%b %d, %Y at %I:%M %p') if session.last_played else 'N/A'
+                            }}
+                        </div>
+                        <a href="{{ url_for('arena_standings', quiz_id=session._id) }}" class="view-btn">
+                            <i class="fas fa-trophy"></i> View Standings
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-gamepad"></i>
+                <h2>No Arena Sessions Yet</h2>
+                <p>Start a live quiz arena to see history here!</p>
+            </div>
+            {% endif %}
+
+            <div class="page-actions">
+                <a href="{{ url_for('dashboard') }}" class="action-btn secondary">
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+                <a href="{{ url_for('quizzes') }}" class="action-btn primary">
+                    <i class="fas fa-play"></i> Start New Arena
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

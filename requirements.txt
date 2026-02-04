@@ -1,5 +1,8 @@
 Flask
 Flask-Login
+Flask-SocketIO
+gevent
+gevent-websocket
 pymongo[srv]
 dnspython
 Werkzeug

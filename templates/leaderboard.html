@@ -3,98 +3,315 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>FLUX Leaderboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard - FLUX</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        body {
-            font-family: Arial;
-            max-width: 600px;
-            margin: 50px auto;
-            padding: 20px;
-            background: #f4f4f4;
+        .leaderboard-page {
+            min-height: 100vh;
+            background: var(--bg-primary);
+            padding: 40px 24px;
         }
 
-        h2 {
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .page-header {
+            text-align: center;
+            margin-bottom: 48px;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        .page-header h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        .page-header h1 i {
+            color: #FFD700;
+        }
+
+        .page-header p {
+            color: var(--text-muted);
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            margin-bottom: 24px;
+            transition: color var(--transition-fast);
+        }
+
+        .back-link:hover {
+            color: var(--accent);
+        }
+
+        /* Podium */
+        .podium {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 16px;
+            margin-bottom: 48px;
+        }
+
+        .podium-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .podium-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--surface-mint));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: var(--text-on-accent);
+            margin-bottom: 12px;
+        }
+
+        .podium-item.first .podium-avatar {
+            width: 80px;
+            height: 80px;
+            font-size: 2rem;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.4);
+        }
+
+        .podium-name {
+            font-weight: 600;
+            margin-bottom: 4px;
             text-align: center;
         }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-            background: white;
-            border-radius: 8px;
+        .podium-score {
+            color: var(--accent);
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .podium-stand {
+            width: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-md) var(--radius-md) 0 0;
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-top: 8px;
+        }
+
+        .podium-item.first .podium-stand {
+            height: 100px;
+            background: linear-gradient(180deg, #FFD700, #FFA500);
+            color: #000;
+        }
+
+        .podium-item.second .podium-stand {
+            height: 70px;
+            background: linear-gradient(180deg, #C0C0C0, #A0A0A0);
+            color: #000;
+        }
+
+        .podium-item.third .podium-stand {
+            height: 50px;
+            background: linear-gradient(180deg, #CD7F32, #A0522D);
+            color: #000;
+        }
+
+        /* Leaderboard Table */
+        .leaderboard-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
             overflow: hidden;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
 
-        th,
-        td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
+        .leaderboard-row {
+            display: flex;
+            align-items: center;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+            transition: all var(--transition-fast);
         }
 
-        th {
-            background: #007bff;
-            color: white;
+        .leaderboard-row:last-child {
+            border-bottom: none;
         }
 
-        tr:hover {
-            background: #f5f5f5;
+        .leaderboard-row:hover {
+            background: rgba(191, 255, 0, 0.02);
+        }
+
+        .leaderboard-row.top-3 {
+            background: rgba(191, 255, 0, 0.03);
         }
 
         .rank {
-            font-weight: bold;
-            color: #ffd700;
+            width: 50px;
+            font-weight: 700;
+            font-size: 1.1rem;
         }
 
-        .no-data {
+        .rank.gold {
+            color: #FFD700;
+        }
+
+        .rank.silver {
+            color: #C0C0C0;
+        }
+
+        .rank.bronze {
+            color: #CD7F32;
+        }
+
+        .rank:not(.gold):not(.silver):not(.bronze) {
+            color: var(--text-muted);
+        }
+
+        .player-info {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .player-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--surface-mint));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: var(--text-on-accent);
+        }
+
+        .player-name {
+            font-weight: 500;
+        }
+
+        .player-score {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--accent);
+        }
+
+        /* Empty State */
+        .empty-state {
             text-align: center;
-            color: #666;
-            padding: 40px;
-            font-style: italic;
+            padding: 80px 20px;
+            color: var(--text-muted);
         }
 
-        a {
-            color: #007bff;
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.3;
+            color: #FFD700;
+        }
+
+        .empty-state a {
+            color: var(--accent);
             text-decoration: none;
         }
 
-        a:hover {
-            text-decoration: underline;
+        @media (max-width: 768px) {
+            .podium-stand {
+                width: 80px;
+            }
+
+            .podium-item.first .podium-avatar {
+                width: 60px;
+                height: 60px;
+            }
         }
     </style>
 </head>
 
 <body>
-    <h2>Top Performers Leaderboard</h2>
-    <p><a href="{{ url_for('dashboard') }}">Back to Dashboard</a></p>
+    <div class="leaderboard-page">
+        <div class="container">
+            <a href="{{ url_for('dashboard') }}" class="back-link">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
 
-    {% if leaderboard %}
-    <table>
-        <thead>
-            <tr>
-                <th>Rank</th>
-                <th>Student</th>
-                <th>Total Score</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for entry in leaderboard %}
-            <tr>
-                <td class="rank">{{ loop.index }}</td>
-                <td>{{ entry.username }}</td>
-                <td>{{ entry.score }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <div class="no-data">
-        No scores yet. Take some quizzes to build the leaderboard!
-        <br><a href="{{ url_for('quizzes') }}">Browse Quizzes</a>
+            <div class="page-header">
+                <h1><i class="fas fa-trophy"></i> Leaderboard</h1>
+                <p>Top performers across all quizzes</p>
+            </div>
+
+            {% if leaderboard %}
+
+            <!-- Podium for Top 3 -->
+            {% if leaderboard|length >= 3 %}
+            <div class="podium">
+                <div class="podium-item second">
+                    <div class="podium-avatar">{{ leaderboard[1].username[0] | upper }}</div>
+                    <div class="podium-name">{{ leaderboard[1].username }}</div>
+                    <div class="podium-score">{{ leaderboard[1].score }}</div>
+                    <div class="podium-stand">2</div>
+                </div>
+                <div class="podium-item first">
+                    <div class="podium-avatar">{{ leaderboard[0].username[0] | upper }}</div>
+                    <div class="podium-name">{{ leaderboard[0].username }}</div>
+                    <div class="podium-score">{{ leaderboard[0].score }}</div>
+                    <div class="podium-stand">1</div>
+                </div>
+                <div class="podium-item third">
+                    <div class="podium-avatar">{{ leaderboard[2].username[0] | upper }}</div>
+                    <div class="podium-name">{{ leaderboard[2].username }}</div>
+                    <div class="podium-score">{{ leaderboard[2].score }}</div>
+                    <div class="podium-stand">3</div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Full Leaderboard -->
+            <div class="leaderboard-card">
+                {% for entry in leaderboard %}
+                <div class="leaderboard-row {% if loop.index <= 3 %}top-3{% endif %}">
+                    <span
+                        class="rank {% if loop.index == 1 %}gold{% elif loop.index == 2 %}silver{% elif loop.index == 3 %}bronze{% endif %}">
+                        {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{
+                        loop.index }}{% endif %}
+                    </span>
+                    <div class="player-info">
+                        <div class="player-avatar">{{ entry.username[0] | upper }}</div>
+                        <span class="player-name">{{ entry.username }}</span>
+                    </div>
+                    <span class="player-score">{{ entry.score }} pts</span>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-trophy"></i>
+                <h3>No Scores Yet</h3>
+                <p>Take some quizzes to build the leaderboard!</p>
+                <p><a href="{{ url_for('quizzes') }}">Browse Quizzes →</a></p>
+            </div>
+            {% endif %}
+        </div>
     </div>
-    {% endif %}
 </body>
 
 </html>
