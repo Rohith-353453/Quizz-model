@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
     <style>
         .lobby-page {
             min-height: 100vh;
@@ -163,10 +163,21 @@
             flex-direction: column;
             align-items: center;
             gap: 8px;
+            min-width: 174px;
+            min-height: 174px;
         }
 
-        .qr-container canvas {
+        .qr-container canvas,
+        .qr-container img {
             border-radius: 8px;
+        }
+
+        .qr-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 0.85rem;
         }
 
         .qr-label {
@@ -519,8 +530,8 @@
 
                 <!-- QR Code -->
                 <div class="qr-section">
-                    <div class="qr-container">
-                        <canvas id="qrCode"></canvas>
+                    <div class="qr-container" id="qrContainer">
+                        <div class="qr-loading">Loading QR...</div>
                     </div>
                     <div class="qr-label">
                         <i class="fas fa-mobile-alt"></i>
@@ -596,16 +607,42 @@
 
         // Generate QR Code for lobby link
         const lobbyUrl = document.getElementById('lobbyLink').textContent.trim();
-        QRCode.toCanvas(document.getElementById('qrCode'), lobbyUrl, {
-            width: 150,
-            margin: 2,
-            color: {
-                dark: '#0a0a0a',
-                light: '#ffffff'
+        const qrContainer = document.getElementById('qrContainer');
+
+        function generateQRCode() {
+            if (typeof QRCode === 'undefined') {
+                console.error('QRCode library not loaded, retrying...');
+                // Retry after a short delay
+                setTimeout(generateQRCode, 500);
+                return;
             }
-        }, function (error) {
-            if (error) console.error('QR Code generation error:', error);
-        });
+
+            // Clear loading state and create canvas
+            qrContainer.innerHTML = '<canvas id="qrCode"></canvas>';
+            const canvas = document.getElementById('qrCode');
+
+            QRCode.toCanvas(canvas, lobbyUrl, {
+                width: 150,
+                margin: 2,
+                color: {
+                    dark: '#0a0a0a',
+                    light: '#ffffff'
+                }
+            }, function (error) {
+                if (error) {
+                    console.error('QR Code generation error:', error);
+                    // Fallback: use Google Charts API for QR code
+                    qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(lobbyUrl)}" alt="QR Code" width="150" height="150">`;
+                }
+            });
+        }
+
+        // Generate QR code when DOM is ready
+        if (document.readyState === 'complete') {
+            generateQRCode();
+        } else {
+            window.addEventListener('load', generateQRCode);
+        }
 
         // =====================================================================
         // ROBUST SOCKET.IO CONNECTION WITH RECONNECTION LOGIC
@@ -627,8 +664,8 @@
             randomizationFactor: 0.5,         // Add randomness to prevent thundering herd
             timeout: 20000,                   // Connection timeout
 
-            // Transport options for stability
-            transports: ['websocket', 'polling'],
+            // Transport options - polling first for Render compatibility, then upgrade to websocket
+            transports: ['polling', 'websocket'],
             upgrade: true,
 
             // Force new connection on reconnect
@@ -735,6 +772,12 @@
         // Joined confirmation
         socket.on('joined', function (data) {
             console.log('[SocketIO] Joined lobby:', data);
+
+            // If the quiz has already started and we're joining/rejoining, redirect to live quiz page
+            if (data.quiz_started) {
+                console.log('[SocketIO] Quiz already started, redirecting to live quiz...');
+                window.location.href = `/live_quiz/${quizId}`;
+            }
         });
 
         // Player list update
