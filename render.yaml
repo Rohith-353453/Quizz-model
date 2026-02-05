@@ -6,7 +6,7 @@ services:
     name: flux-quiz-app
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker --workers 1 --bind 0.0.0.0:$PORT app:app
+    startCommand: gunicorn --worker-class gevent --workers 1 --timeout 120 --bind 0.0.0.0:$PORT app:app
     envVars:
       - key: SECRET_KEY
         generateValue: true
