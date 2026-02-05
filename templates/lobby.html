@@ -607,25 +607,129 @@
             if (error) console.error('QR Code generation error:', error);
         });
 
-        // Initialize Socket.IO connection
-        const socket = io();
+        // =====================================================================
+        // ROBUST SOCKET.IO CONNECTION WITH RECONNECTION LOGIC
+        // =====================================================================
+
+        // Connection state tracking
+        let connectionStatus = 'connecting'; // 'connecting' | 'connected' | 'disconnected' | 'error'
+        let reconnectAttempts = 0;
+        let keepAliveInterval = null;
+        let hasJoinedLobby = false;
+
+        // Initialize Socket.IO with robust reconnection settings
+        const socket = io({
+            // Auto-reconnect with exponential backoff
+            reconnection: true,
+            reconnectionAttempts: Infinity,  // Keep trying forever
+            reconnectionDelay: 1000,          // Start with 1s delay
+            reconnectionDelayMax: 5000,       // Max 5s between attempts
+            randomizationFactor: 0.5,         // Add randomness to prevent thundering herd
+            timeout: 20000,                   // Connection timeout
+
+            // Transport options for stability
+            transports: ['websocket', 'polling'],
+            upgrade: true,
+
+            // Force new connection on reconnect
+            forceNew: false
+        });
+
+        // =====================================================================
+        // KEEP-ALIVE MECHANISM (prevents Render spin-down)
+        // =====================================================================
+        function startKeepAlive() {
+            // Clear any existing interval
+            if (keepAliveInterval) {
+                clearInterval(keepAliveInterval);
+            }
+
+            // Send ping every 30 seconds to keep connection alive
+            keepAliveInterval = setInterval(() => {
+                if (socket.connected) {
+                    socket.emit('ping');
+                    console.log('[SocketIO] Keep-alive ping sent');
+                }
+            }, 30000); // 30 seconds
+        }
+
+        function stopKeepAlive() {
+            if (keepAliveInterval) {
+                clearInterval(keepAliveInterval);
+                keepAliveInterval = null;
+            }
+        }
+
+        // Handle pong response from server
+        socket.on('pong', function (data) {
+            console.log('[SocketIO] Keep-alive pong received:', data.timestamp);
+        });
+
+        // =====================================================================
+        // CONNECTION STATE HANDLERS
+        // =====================================================================
 
         // Connection established
         socket.on('connect', function () {
             console.log('[SocketIO] Connected:', socket.id);
-            updateConnectionStatus(true);
+            connectionStatus = 'connected';
+            reconnectAttempts = 0;
+            updateConnectionStatus('connected');
 
+            // Start keep-alive mechanism
+            startKeepAlive();
+
+            // Join or rejoin the lobby
             socket.emit('join_lobby', {
                 quiz_id: quizId,
                 user_id: userId,
                 username: username
             });
+            hasJoinedLobby = true;
         });
 
         // Connection lost
-        socket.on('disconnect', function () {
-            console.log('[SocketIO] Disconnected');
-            updateConnectionStatus(false);
+        socket.on('disconnect', function (reason) {
+            console.log('[SocketIO] Disconnected:', reason);
+            connectionStatus = 'disconnected';
+            stopKeepAlive();
+
+            // If server disconnected us, we need to reconnect manually
+            if (reason === 'io server disconnect') {
+                socket.connect();
+            }
+
+            updateConnectionStatus('reconnecting');
+        });
+
+        // Connection error handler
+        socket.on('connect_error', function (error) {
+            console.error('[SocketIO] Connection error:', error.message);
+            connectionStatus = 'error';
+            reconnectAttempts++;
+
+            // Update UI to show reconnecting status
+            if (reconnectAttempts > 5) {
+                updateConnectionStatus('unstable');
+            } else {
+                updateConnectionStatus('reconnecting');
+            }
+        });
+
+        // Reconnection attempt
+        socket.on('reconnect_attempt', function (attemptNumber) {
+            console.log('[SocketIO] Reconnection attempt:', attemptNumber);
+            reconnectAttempts = attemptNumber;
+            updateConnectionStatus('reconnecting');
+        });
+
+        // Successfully reconnected
+        socket.on('reconnect', function (attemptNumber) {
+            console.log('[SocketIO] Reconnected after', attemptNumber, 'attempts');
+            connectionStatus = 'connected';
+            reconnectAttempts = 0;
+            updateConnectionStatus('connected');
+            startKeepAlive();
         });
 
         // Joined confirmation
@@ -673,16 +777,28 @@
             console.log('[SocketIO] Player kicked:', data);
         });
 
-        function updateConnectionStatus(connected) {
+        function updateConnectionStatus(status) {
             const statusEl = document.getElementById('connectionStatus');
             const textEl = document.getElementById('connectionText');
 
-            if (connected) {
-                statusEl.className = 'connection-status connected';
-                textEl.textContent = 'Connected';
-            } else {
-                statusEl.className = 'connection-status disconnected';
-                textEl.textContent = 'Disconnected';
+            switch (status) {
+                case 'connected':
+                    statusEl.className = 'connection-status connected';
+                    textEl.textContent = 'Connected';
+                    break;
+                case 'reconnecting':
+                    statusEl.className = 'connection-status disconnected';
+                    textEl.textContent = 'Reconnecting...';
+                    break;
+                case 'unstable':
+                    statusEl.className = 'connection-status disconnected';
+                    textEl.textContent = 'Connection unstable – trying to reconnect...';
+                    break;
+                case 'disconnected':
+                default:
+                    statusEl.className = 'connection-status disconnected';
+                    textEl.textContent = 'Disconnected';
+                    break;
             }
         }
 
@@ -767,6 +883,7 @@
 
         // Clean up on page unload
         window.addEventListener('beforeunload', function () {
+            stopKeepAlive();
             socket.emit('leave_lobby', {
                 quiz_id: quizId,
                 user_id: userId

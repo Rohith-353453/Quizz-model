@@ -650,11 +650,70 @@
         let timerInterval = null;
         let timeLeft = 0;
         let answerSubmitted = false;
+        let keepAliveInterval = null;
 
-        const socket = io();
+        // =====================================================================
+        // ROBUST SOCKET.IO CONNECTION WITH RECONNECTION LOGIC
+        // =====================================================================
+        const socket = io({
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            randomizationFactor: 0.5,
+            timeout: 20000,
+            transports: ['websocket', 'polling'],
+            upgrade: true,
+            forceNew: false
+        });
+
+        // Keep-alive mechanism
+        function startKeepAlive() {
+            if (keepAliveInterval) clearInterval(keepAliveInterval);
+            keepAliveInterval = setInterval(() => {
+                if (socket.connected) {
+                    socket.emit('ping');
+                }
+            }, 30000);
+        }
+
+        function stopKeepAlive() {
+            if (keepAliveInterval) {
+                clearInterval(keepAliveInterval);
+                keepAliveInterval = null;
+            }
+        }
+
+        socket.on('pong', function (data) {
+            console.log('[SocketIO] Keep-alive pong received');
+        });
 
         socket.on('connect', function () {
             console.log('[SocketIO] Connected to live quiz');
+            startKeepAlive();
+            socket.emit('join_lobby', {
+                quiz_id: quizId,
+                user_id: userId,
+                username: username
+            });
+        });
+
+        socket.on('disconnect', function (reason) {
+            console.log('[SocketIO] Disconnected:', reason);
+            stopKeepAlive();
+            if (reason === 'io server disconnect') {
+                socket.connect();
+            }
+        });
+
+        socket.on('connect_error', function (error) {
+            console.error('[SocketIO] Connection error:', error.message);
+        });
+
+        socket.on('reconnect', function (attemptNumber) {
+            console.log('[SocketIO] Reconnected after', attemptNumber, 'attempts');
+            startKeepAlive();
+            // Rejoin the quiz room
             socket.emit('join_lobby', {
                 quiz_id: quizId,
                 user_id: userId,

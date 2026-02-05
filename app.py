@@ -101,8 +101,21 @@ def internal_server_error(e):
     return render_template('500.html', error=e), 500
 
 # =====================================================================
+# HEALTH CHECK ENDPOINT (keeps Render instance warm)
+# =====================================================================
+@app.route('/health')
+def health_check():
+    """Health check endpoint for monitoring and keeping instance warm"""
+    return {'status': 'healthy', 'timestamp': datetime.now().isoformat()}, 200
+
+# =====================================================================
 # SOCKETIO EVENT HANDLERS
 # =====================================================================
+@socketio.on('ping')
+def handle_ping():
+    """Handle keep-alive ping from client"""
+    emit('pong', {'timestamp': datetime.now().isoformat()})
+
 @socketio.on('connect')
 def handle_connect():
     print(f"[SocketIO] Client connected: {request.sid}")
