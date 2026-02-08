@@ -26,12 +26,27 @@ app.config['MONGO_URI'] = os.getenv('MONGO_URI')
 # =====================================================================
 # FLASK-SOCKETIO INITIALIZATION (eventlet backend)
 # =====================================================================
+# Suppress noisy eventlet socket cleanup errors
+import logging
+class SocketErrorFilter(logging.Filter):
+    def filter(self, record):
+        # Filter out the noisy "Bad file descriptor" errors from eventlet
+        msg = record.getMessage()
+        if 'Bad file descriptor' in msg or 'socket shutdown error' in msg:
+            return False
+        return True
+
+# Apply filter to werkzeug/engineio loggers
+logging.getLogger('werkzeug').addFilter(SocketErrorFilter())
+logging.getLogger('engineio.server').addFilter(SocketErrorFilter())
+logging.getLogger('socketio.server').addFilter(SocketErrorFilter())
+
 socketio = SocketIO(
     app,
     async_mode='eventlet',
     cors_allowed_origins="*",
-    logger=True,  # Enable to debug connection issues
-    engineio_logger=True,  # Enable to debug connection issues
+    logger=False,  # Disable verbose logging (app is stable now)
+    engineio_logger=False,  # Disable verbose logging
     ping_timeout=60,
     ping_interval=25
 )
