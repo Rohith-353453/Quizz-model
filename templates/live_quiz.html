@@ -692,11 +692,22 @@
         socket.on('connect', function () {
             console.log('[SocketIO] Connected to live quiz');
             startKeepAlive();
+
+            // Join the room
             socket.emit('join_lobby', {
                 quiz_id: quizId,
                 user_id: userId,
                 username: username
             });
+
+            // Signal ready after a brief delay to ensure page is fully loaded
+            setTimeout(function () {
+                socket.emit('player_ready', {
+                    quiz_id: quizId,
+                    user_id: userId
+                });
+                console.log('[SocketIO] Sent player_ready signal');
+            }, 500);
         });
 
         socket.on('disconnect', function (reason) {
@@ -728,6 +739,30 @@
                 currentScore = data.current_score;
                 document.getElementById('scoreValue').textContent = currentScore;
                 console.log('[SocketIO] Restored score:', currentScore);
+            }
+        });
+
+        // Handle ready count updates while waiting
+        socket.on('ready_count', function (data) {
+            console.log('[SocketIO] Ready count:', data.ready, '/', data.total);
+            const waitingState = document.getElementById('waitingState');
+            if (waitingState) {
+                const pElem = waitingState.querySelector('p');
+                if (pElem) {
+                    pElem.textContent = 'Waiting for players... (' + data.ready + '/' + data.total + ' ready)';
+                }
+            }
+        });
+
+        // Handle quiz starting countdown
+        socket.on('quiz_starting_now', function (data) {
+            console.log('[SocketIO] Quiz starting in', data.countdown, 'seconds');
+            const waitingState = document.getElementById('waitingState');
+            if (waitingState) {
+                const h2Elem = waitingState.querySelector('h2');
+                const pElem = waitingState.querySelector('p');
+                if (h2Elem) h2Elem.textContent = '🚀 Starting!';
+                if (pElem) pElem.textContent = 'First question incoming...';
             }
         });
 

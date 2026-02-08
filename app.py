@@ -30,8 +30,8 @@ socketio = SocketIO(
     app,
     async_mode='eventlet',
     cors_allowed_origins="*",
-    logger=False,
-    engineio_logger=False,
+    logger=True,  # Enable to debug connection issues
+    engineio_logger=True,  # Enable to debug connection issues
     ping_timeout=60,
     ping_interval=25
 )
@@ -47,6 +47,9 @@ live_scores = {}
 
 # Structure: { quiz_id: { 'current_question': int, 'started': bool, 'master_id': str } }
 live_quiz_state = {}
+
+# Structure: { quiz_id: set(user_ids) } - Players who signaled ready on live quiz page
+live_ready_players = {}
 
 # =====================================================================
 # LAZY MONGODB CONNECTION
@@ -202,6 +205,32 @@ def handle_join_lobby(data):
         'current_score': previous_score
     })
 
+@socketio.on('player_ready')
+def handle_player_ready(data):
+    """Handle player signaling they're ready to receive questions"""
+    quiz_id = data.get('quiz_id')
+    user_id = data.get('user_id')
+    
+    if not quiz_id or not user_id:
+        return
+    
+    # Initialize set if needed
+    if quiz_id not in live_ready_players:
+        live_ready_players[quiz_id] = set()
+    
+    live_ready_players[quiz_id].add(user_id)
+    print(f"[SocketIO] Player {user_id} ready for quiz {quiz_id}")
+    
+    # Emit ready count to all players
+    room = f"quiz_{quiz_id}"
+    total_players = len(live_players.get(quiz_id, {}))
+    ready_count = len(live_ready_players.get(quiz_id, set()))
+    
+    socketio.emit('ready_count', {
+        'ready': ready_count,
+        'total': total_players
+    }, room=room)
+
 @socketio.on('leave_lobby')
 def handle_leave_lobby(data):
     """Handle player leaving the lobby"""
@@ -322,56 +351,97 @@ def send_questions_task(quiz_id):
     questions = quiz.get('questions', [])
     room = f"quiz_{quiz_id}"
     
-    # Wait for players to load the live quiz page
-    socketio.sleep(3)
+    # =========================================================
+    # WAIT FOR PLAYERS TO BE READY (with timeout)
+    # =========================================================
+    max_wait = 30  # Maximum 30 seconds to wait for players
+    waited = 0
+    
+    while waited < max_wait:
+        total_players = len(live_players.get(quiz_id, {}))
+        ready_players = len(live_ready_players.get(quiz_id, set()))
+        
+        print(f"[SocketIO] Quiz {quiz_id}: {ready_players}/{total_players} players ready")
+        
+        # Start when all players are ready, or at least 1 after 10s
+        if ready_players >= total_players and total_players > 0:
+            print(f"[SocketIO] All players ready, starting quiz {quiz_id}")
+            break
+        if waited >= 10 and ready_players >= 1:
+            print(f"[SocketIO] Timeout, starting quiz {quiz_id} with {ready_players} ready players")
+            break
+            
+        socketio.sleep(1)
+        waited += 1
+    
+    # Notify all players that quiz is starting NOW
+    socketio.emit('quiz_starting_now', {'countdown': 3}, room=room)
+    socketio.sleep(3)  # 3-second countdown
     
     for idx, question in enumerate(questions):
-        # Check if quiz was cancelled
-        if quiz_id not in live_quiz_state or not live_quiz_state[quiz_id].get('started'):
-            break
-        
-        live_quiz_state[quiz_id]['current_question'] = idx
-        
-        # Get time for this specific question (default 30 seconds)
-        time_for_question = question.get('time', 30)
-        
-        # Prepare question data (don't send the answer!)
-        question_data = {
-            'index': idx,
-            'total': len(questions),
-            'text': question['text'],
-            'type': question['type'],
-            'points': question.get('points', 1),
-            'time_limit': time_for_question
-        }
-        
-        # Add options for MCQ
-        if question['type'] == 'mcq':
-            question_data['options'] = question.get('options', [])
-        
-        print(f"[SocketIO] Sending question {idx + 1}/{len(questions)} for quiz {quiz_id} ({time_for_question}s)")
-        
-        # Broadcast question to all players
-        socketio.emit('new_question', question_data, room=room)
-        
-        # Wait for this question's time limit
-        socketio.sleep(time_for_question)
-        
-        # Broadcast time up with correct answer revealed
-        socketio.emit('question_time_up', {
-            'index': idx,
-            'correct_answer': question.get('answer'),
-            'question_type': question.get('type')
-        }, room=room)
-        
-        # Short pause between questions
-        socketio.sleep(2)
+        try:
+            # Check if quiz was cancelled
+            if quiz_id not in live_quiz_state or not live_quiz_state[quiz_id].get('started'):
+                print(f"[SocketIO] Quiz {quiz_id} cancelled, breaking at question {idx}")
+                break
+            
+            live_quiz_state[quiz_id]['current_question'] = idx
+            
+            # Get time for this specific question (default 30 seconds)
+            time_for_question = question.get('time', 30)
+            
+            # Prepare question data (don't send the answer!)
+            question_data = {
+                'index': idx,
+                'total': len(questions),
+                'text': question['text'],
+                'type': question['type'],
+                'points': question.get('points', 1),
+                'time_limit': time_for_question
+            }
+            
+            # Add options for MCQ
+            if question['type'] == 'mcq':
+                question_data['options'] = question.get('options', [])
+            
+            print(f"[SocketIO] Sending question {idx + 1}/{len(questions)} for quiz {quiz_id} ({time_for_question}s)")
+            
+            # Broadcast question to all players (wrap in try for socket safety)
+            try:
+                socketio.emit('new_question', question_data, room=room)
+            except Exception as e:
+                print(f"[SocketIO] Error emitting question: {e}")
+            
+            # Wait for this question's time limit
+            socketio.sleep(time_for_question)
+            
+            # Broadcast time up with correct answer revealed
+            try:
+                socketio.emit('question_time_up', {
+                    'index': idx,
+                    'correct_answer': question.get('answer'),
+                    'question_type': question.get('type')
+                }, room=room)
+            except Exception as e:
+                print(f"[SocketIO] Error emitting time_up: {e}")
+            
+            # Short pause between questions
+            socketio.sleep(2)
+            
+        except Exception as e:
+            print(f"[SocketIO] Error in question loop at {idx}: {e}")
+            # Continue to next question instead of crashing
+            continue
     
     # Quiz ended - mark as stopped first, then save results
+    print(f"[SocketIO] Quiz {quiz_id} completed all {len(questions)} questions")
     if quiz_id in live_quiz_state:
         live_quiz_state[quiz_id]['started'] = False
     
-    socketio.emit('quiz_ended', {'quiz_id': quiz_id}, room=room)
+    try:
+        socketio.emit('quiz_ended', {'quiz_id': quiz_id}, room=room)
+    except Exception as e:
+        print(f"[SocketIO] Error emitting quiz_ended: {e}")
     print(f"[SocketIO] Quiz {quiz_id} ended")
     
     # Save results to MongoDB (this also cleans up state)
@@ -428,6 +498,8 @@ def save_live_quiz_results(quiz_id, quiz):
         del live_scores[quiz_id]
     if quiz_id in live_quiz_state:
         del live_quiz_state[quiz_id]
+    if quiz_id in live_ready_players:
+        del live_ready_players[quiz_id]
 
 @socketio.on('submit_answer')
 def handle_submit_answer(data):
