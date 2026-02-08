@@ -483,7 +483,16 @@ def save_live_quiz_results(quiz_id, quiz):
         }
         
         try:
-            results_col.insert_one(result_doc)
+            # Use upsert to prevent duplicates (same player, same quiz, same mode)
+            results_col.update_one(
+                {
+                    'quiz_id': ObjectId(quiz_id),
+                    'student_id': ObjectId(user_id),
+                    'mode': 'live_arena'
+                },
+                {'$set': result_doc},
+                upsert=True
+            )
             saved_count += 1
             print(f"[SocketIO] Saved result for {username}: {score}/{total_possible} ({percentage}%)")
         except Exception as e:
@@ -833,6 +842,16 @@ def arena_standings(quiz_id):
         'quiz_id': ObjectId(quiz_id),
         'mode': 'live_arena'
     }).sort('score', -1))
+    
+    # Deduplicate: keep only highest score per player
+    seen_players = set()
+    unique_results = []
+    for res in results:
+        player_id = str(res.get('student_id', ''))
+        if player_id not in seen_players:
+            seen_players.add(player_id)
+            unique_results.append(res)
+    results = unique_results
     
     # Calculate total possible
     total_possible = sum(q.get('points', 1) for q in quiz.get('questions', []))
