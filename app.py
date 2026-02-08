@@ -219,6 +219,16 @@ def handle_join_lobby(data):
         'quiz_started': is_quiz_started,
         'current_score': previous_score
     })
+    
+    # If quiz is in progress, send current question to the rejoining player
+    if is_quiz_started and quiz_state.get('current_question_data'):
+        current_q = quiz_state.get('current_question_data')
+        time_remaining = quiz_state.get('time_remaining', 30)
+        print(f"[SocketIO] Sending current question to {username} (Q{current_q.get('index', 0) + 1}, {time_remaining}s left)")
+        emit('new_question', current_q)
+        # Also send reduced time so they know how much time is left
+        emit('sync_timer', {'time_remaining': time_remaining})
+
 
 @socketio.on('player_ready')
 def handle_player_ready(data):
@@ -419,6 +429,10 @@ def send_questions_task(quiz_id):
             if question['type'] == 'mcq':
                 question_data['options'] = question.get('options', [])
             
+            # Store current question data for reconnecting players
+            live_quiz_state[quiz_id]['current_question_data'] = question_data
+            live_quiz_state[quiz_id]['time_remaining'] = time_for_question
+            
             print(f"[SocketIO] Sending question {idx + 1}/{len(questions)} for quiz {quiz_id} ({time_for_question}s)")
             
             # Broadcast question to all players (wrap in try for socket safety)
@@ -427,8 +441,10 @@ def send_questions_task(quiz_id):
             except Exception as e:
                 print(f"[SocketIO] Error emitting question: {e}")
             
-            # Wait for this question's time limit
-            socketio.sleep(time_for_question)
+            # Wait for this question's time limit (track remaining time for reconnecting players)
+            for t in range(time_for_question, 0, -1):
+                live_quiz_state[quiz_id]['time_remaining'] = t
+                socketio.sleep(1)
             
             # Broadcast time up with correct answer revealed
             try:
