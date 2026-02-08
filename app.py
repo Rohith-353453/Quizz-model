@@ -673,11 +673,11 @@ def create_quiz():
             duration = int(request.form.get('duration', 0))
         except ValueError:
             flash('Invalid duration')
-            return render_template('create_quiz.html')
+            return redirect(url_for('dashboard'))
 
         if not title or not subject or duration <= 0:
             flash('Please fill title, subject, and a valid duration')
-            return render_template('create_quiz.html')
+            return redirect(url_for('dashboard'))
 
         questions = []
         for i in range(1, 51):
@@ -725,17 +725,17 @@ def create_quiz():
                         options.append(opt)
                 if len(options) < 2:
                     flash(f'MCQ Question {i} needs at least 2 options')
-                    return render_template('create_quiz.html')
+                    return redirect(url_for('dashboard'))
                 q['options'] = options
             
             questions.append(q)
 
         if len(questions) == 0:
             flash('Add at least one question')
-            return render_template('create_quiz.html')
+            return redirect(url_for('dashboard'))
         if len(questions) > 50:
             flash('Maximum 50 questions allowed')
-            return render_template('create_quiz.html')
+            return redirect(url_for('dashboard'))
 
         try:
             quizzes.insert_one({
@@ -752,7 +752,7 @@ def create_quiz():
             flash('Quiz creation failed – please try again')
             print(f"DB Error: {e}")
 
-    return render_template('create_quiz.html')
+    return redirect(url_for('dashboard'))
 
 @app.route('/quizzes')
 @login_required
