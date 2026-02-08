@@ -1,9 +1,9 @@
 # =====================================================================
-# GEVENT MONKEY PATCHING - MUST BE AT THE ABSOLUTE TOP
+# EVENTLET MONKEY PATCHING - MUST BE AT THE ABSOLUTE TOP
 # Before ANY other imports including standard library
 # =====================================================================
-from gevent import monkey
-monkey.patch_all()
+import eventlet
+eventlet.monkey_patch()
 
 # Now safe to import everything else
 from flask import Flask, render_template, request, redirect, url_for, flash
@@ -24,11 +24,11 @@ app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
 app.config['MONGO_URI'] = os.getenv('MONGO_URI')
 
 # =====================================================================
-# FLASK-SOCKETIO INITIALIZATION (gevent backend)
+# FLASK-SOCKETIO INITIALIZATION (eventlet backend)
 # =====================================================================
 socketio = SocketIO(
     app,
-    async_mode='gevent',
+    async_mode='eventlet',
     cors_allowed_origins="*",
     logger=False,
     engineio_logger=False,

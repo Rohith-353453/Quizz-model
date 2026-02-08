@@ -1,11 +1,9 @@
 Flask
 Flask-Login
 Flask-SocketIO
-gevent
-gevent-websocket
+eventlet
 pymongo[srv]
 dnspython
 Werkzeug
 python-dotenv
 gunicorn
-simple-websocket
