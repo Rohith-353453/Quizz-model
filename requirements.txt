@@ -8,3 +8,4 @@ dnspython
 Werkzeug
 python-dotenv
 gunicorn
+simple-websocket

@@ -662,8 +662,8 @@
             reconnectionDelayMax: 5000,
             randomizationFactor: 0.5,
             timeout: 20000,
-            // Transport options - polling first for Render compatibility, then upgrade to websocket
-            transports: ['polling', 'websocket'],
+            // Transport options - try WebSocket first, fall back to polling
+            transports: ['websocket', 'polling'],
             upgrade: true,
             forceNew: false
         });

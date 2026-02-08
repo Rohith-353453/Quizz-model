@@ -664,8 +664,8 @@
             randomizationFactor: 0.5,         // Add randomness to prevent thundering herd
             timeout: 20000,                   // Connection timeout
 
-            // Transport options - polling first for Render compatibility, then upgrade to websocket
-            transports: ['polling', 'websocket'],
+            // Transport options - try WebSocket first, fall back to polling
+            transports: ['websocket', 'polling'],
             upgrade: true,
 
             // Force new connection on reconnect
