@@ -7,4 +7,4 @@ pymongo[srv]
 dnspython
 Werkzeug
 python-dotenv
-gunicorn
+gunicorn==21.2.0
