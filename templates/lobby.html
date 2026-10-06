@@ -514,7 +514,7 @@
                 <div class="quiz-info">
                     <span><i class="fas fa-book"></i> {{ quiz.subject }}</span>
                     <span><i class="fas fa-question-circle"></i> {{ quiz.questions | length }} questions</span>
-                    <span><i class="fas fa-clock"></i> {{ quiz.duration }} min</span>
+                    <span><i class="fas fa-clock"></i> {{ quiz.duration_minutes|default(quiz.duration) }} min</span>
                 </div>
             </div>
 

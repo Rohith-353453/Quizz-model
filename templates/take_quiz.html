@@ -362,7 +362,7 @@
                 </div>
                 <div class="timer-box" id="timerBox">
                     <i class="fas fa-clock"></i>
-                    <span class="timer-value" id="timer">{{ quiz.duration }}:00</span>
+                    <span class="timer-value" id="timer">{{ quiz.duration_minutes|default(quiz.duration) }}:00</span>
                 </div>
             </div>
         </div>
