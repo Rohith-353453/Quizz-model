@@ -393,7 +393,7 @@
                             <span class="quiz-badge">{{ quiz.subject }}</span>
                         </div>
                         <div class="quiz-meta">
-                            <span><i class="fas fa-clock"></i> {{ quiz.duration }} mins</span>
+                            <span><i class="fas fa-clock"></i> {{ quiz.duration_minutes|default(quiz.duration) }} mins</span>
                             <span><i class="fas fa-question-circle"></i> {{ quiz.questions|length if quiz.questions else
                                 0 }} questions</span>
                             <span><i class="fas fa-calendar"></i> {{ quiz.date.strftime('%b %d, %Y') if quiz.date else
@@ -407,6 +407,9 @@
                         </a>
                         <a href="{{ url_for('edit_quiz', quiz_id=quiz._id|string) }}" class="action-btn btn-secondary">
                             <i class="fas fa-edit"></i> Edit
+                        </a>
+                        <a href="{{ url_for('export_quiz', quiz_id=quiz._id|string) }}" class="action-btn btn-secondary">
+                            <i class="fas fa-download"></i> Export JSON
                         </a>
                         <button onclick="confirmDelete('{{ quiz._id|string }}', '{{ quiz.title }}')"
                             class="action-btn btn-danger">

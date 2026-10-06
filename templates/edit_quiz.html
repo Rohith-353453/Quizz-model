@@ -339,7 +339,7 @@
                         </div>
                         <div class="form-group">
                             <label>Duration (minutes)</label>
-                            <input type="number" name="duration" min="1" value="{{ quiz.duration }}" placeholder="30"
+                            <input type="number" name="duration_minutes" min="1" value="{{ quiz.duration_minutes|default(quiz.duration) }}" placeholder="30"
                                 required>
                         </div>
                     </div>
@@ -397,7 +397,7 @@
                                 <div class="form-group">
                                     <label>Time Limit (seconds)</label>
                                     <input type="number" name="q_time_{{ qnum.value }}"
-                                        value="{{ question.time_limit | default(30) }}" min="5" max="120">
+                                        value="{{ question.time_limit_seconds | default(question.time_limit, true) | default(question.time, true) | default(30, true) }}" min="1">
                                 </div>
                             </div>
 

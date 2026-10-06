@@ -14,6 +14,7 @@ from bson import ObjectId
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 import os
+import json
 from datetime import datetime
 import secrets
 
@@ -91,6 +92,111 @@ def get_db():
 def get_collections():
     db = get_db()
     return db['users'], db['quizzes'], db['results']
+
+MAX_QUESTIONS = 50
+VALID_QUESTION_TYPES = {'mcq', 'tf', 'short'}
+
+def normalize_quiz_payload(payload):
+    """Validate and normalize the shared manual/JSON quiz contract."""
+    if not isinstance(payload, dict):
+        raise ValueError('Quiz data must be an object')
+
+    title = str(payload.get('title', '')).strip()
+    subject = str(payload.get('subject', '')).strip()
+    if not title:
+        raise ValueError('Quiz title is required')
+    if not subject:
+        raise ValueError('Quiz subject is required')
+
+    try:
+        duration_minutes = int(payload.get('duration_minutes'))
+    except (TypeError, ValueError):
+        raise ValueError('Duration must be a positive number of minutes')
+    if duration_minutes <= 0:
+        raise ValueError('Duration must be a positive number of minutes')
+
+    raw_questions = payload.get('questions')
+    if not isinstance(raw_questions, list):
+        raise ValueError('Questions must be an array')
+    if not 1 <= len(raw_questions) <= MAX_QUESTIONS:
+        raise ValueError(f'Questions must contain between 1 and {MAX_QUESTIONS} items')
+
+    questions = []
+    for index, raw_question in enumerate(raw_questions, start=1):
+        prefix = f'Question {index}:'
+        if not isinstance(raw_question, dict):
+            raise ValueError(f'{prefix} must be an object')
+
+        q_type = str(raw_question.get('type', '')).strip().lower()
+        if q_type not in VALID_QUESTION_TYPES:
+            raise ValueError(f'{prefix} type must be mcq, tf, or short')
+
+        text = str(raw_question.get('text', '')).strip()
+        answer = str(raw_question.get('answer', '')).strip()
+        if not text:
+            raise ValueError(f'{prefix} text is required')
+        if not answer:
+            raise ValueError(f'{prefix} answer is required')
+
+        try:
+            points = int(raw_question.get('points'))
+        except (TypeError, ValueError):
+            raise ValueError(f'{prefix} points must be a positive number')
+        if points <= 0:
+            raise ValueError(f'{prefix} points must be a positive number')
+
+        try:
+            time_limit_seconds = int(raw_question.get('time_limit_seconds'))
+        except (TypeError, ValueError):
+            raise ValueError(f'{prefix} time_limit_seconds must be a positive number')
+        if time_limit_seconds <= 0:
+            raise ValueError(f'{prefix} time_limit_seconds must be a positive number')
+
+        question = {
+            'type': q_type,
+            'text': text,
+            'answer': answer.upper() if q_type == 'tf' else answer,
+            'points': points,
+            'time_limit_seconds': time_limit_seconds
+        }
+
+        if q_type == 'mcq':
+            options = raw_question.get('options')
+            if not isinstance(options, list):
+                raise ValueError(f'{prefix} options must be an array for MCQ')
+            normalized_options = [str(option).strip() for option in options if str(option).strip()]
+            if len(normalized_options) < 2:
+                raise ValueError(f'{prefix} needs at least 2 valid MCQ options')
+            if question['answer'] not in normalized_options:
+                raise ValueError(f'{prefix} correct answer does not match any MCQ option')
+            question['options'] = normalized_options
+
+        questions.append(question)
+
+    return {
+        'title': title,
+        'subject': subject,
+        'duration_minutes': duration_minutes,
+        'questions': questions
+    }
+
+def quiz_document(payload, user_id):
+    """Build the stored document while retaining legacy aliases for old views/data."""
+    return {
+        **payload,
+        'duration': payload['duration_minutes'],
+        'createdBy': ObjectId(user_id),
+        'date': datetime.now()
+    }
+
+def quiz_duration_minutes(quiz):
+    return int(quiz.get('duration_minutes', quiz.get('duration', 0)))
+
+def question_time_limit(question):
+    return int(question.get(
+        'time_limit_seconds',
+        question.get('time_limit', question.get('time', 30))
+    ))
 
 # =====================================================================
 # FLASK-LOGIN SETUP
@@ -413,7 +519,7 @@ def send_questions_task(quiz_id):
             live_quiz_state[quiz_id]['current_question'] = idx
             
             # Get time for this specific question (default 30 seconds)
-            time_for_question = question.get('time', 30)
+            time_for_question = question_time_limit(question)
             
             # Prepare question data (don't send the answer!)
             question_data = {
@@ -683,19 +789,7 @@ def create_quiz():
     _, quizzes, _ = get_collections()
 
     if request.method == 'POST':
-        title = request.form.get('title', '').strip()
-        subject = request.form.get('subject', '').strip()
-        try:
-            duration = int(request.form.get('duration', 0))
-        except ValueError:
-            flash('Invalid duration')
-            return redirect(url_for('dashboard'))
-
-        if not title or not subject or duration <= 0:
-            flash('Please fill title, subject, and a valid duration')
-            return redirect(url_for('dashboard'))
-
-        questions = []
+        raw_questions = []
         for i in range(1, 51):
             q_text = request.form.get(f'q_text_{i}', '').strip()
             if not q_text:
@@ -705,70 +799,127 @@ def create_quiz():
             q_answer = request.form.get(f'q_answer_{i}', '').strip()
             try:
                 q_points = int(request.form.get(f'q_points_{i}', 1))
-            except ValueError:
+            except (TypeError, ValueError):
                 q_points = 1
-
-            if q_points < 1:
-                q_points = 1
-            
-            # Parse time per question (seconds)
             try:
                 q_time = int(request.form.get(f'q_time_{i}', 30))
-            except ValueError:
+            except (TypeError, ValueError):
                 q_time = 30
-            
-            if q_time < 5:
-                q_time = 5
-            elif q_time > 120:
-                q_time = 120
-
-            if q_type == 'tf':
-                q_answer = q_answer.upper()
-            
-            q = {
+            question = {
                 'type': q_type,
                 'text': q_text,
                 'answer': q_answer,
                 'points': q_points,
-                'time': q_time
+                'time_limit_seconds': q_time
             }
-
             if q_type == 'mcq':
-                options = []
-                for j in range(1, 5):
-                    opt = request.form.get(f'option_{i}_{j}', '').strip()
-                    if opt:
-                        options.append(opt)
-                if len(options) < 2:
-                    flash(f'MCQ Question {i} needs at least 2 options')
-                    return redirect(url_for('dashboard'))
-                q['options'] = options
-            
-            questions.append(q)
-
-        if len(questions) == 0:
-            flash('Add at least one question')
-            return redirect(url_for('dashboard'))
-        if len(questions) > 50:
-            flash('Maximum 50 questions allowed')
-            return redirect(url_for('dashboard'))
+                question['options'] = [
+                    request.form.get(f'option_{i}_{j}', '').strip()
+                    for j in range(1, 5)
+                    if request.form.get(f'option_{i}_{j}', '').strip()
+                ]
+            raw_questions.append(question)
 
         try:
-            quizzes.insert_one({
-                'title': title,
-                'subject': subject,
-                'duration': duration,
-                'questions': questions,
-                'createdBy': ObjectId(current_user.id),
-                'date': datetime.now()
+            payload = normalize_quiz_payload({
+                'title': request.form.get('title', ''),
+                'subject': request.form.get('subject', ''),
+                'duration_minutes': request.form.get('duration_minutes', request.form.get('duration', '')),
+                'questions': raw_questions
             })
-            flash(f'Quiz "{title}" created successfully!')
+            quizzes.insert_one(quiz_document(payload, current_user.id))
+            flash(f'Quiz "{payload["title"]}" created successfully!')
             return redirect(url_for('quizzes'))
+        except ValueError as e:
+            flash(str(e))
         except Exception as e:
             flash('Quiz creation failed – please try again')
             print(f"DB Error: {e}")
 
     return redirect(url_for('dashboard'))
+
+@app.route('/import_quiz', methods=['GET', 'POST'])
+@login_required
+def import_quiz():
+    if current_user.role != 'master':
+        flash('Access denied')
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        raw_json = request.form.get('quiz_json', '')
+        if 'quiz_file' in request.files and request.files['quiz_file'].filename:
+            try:
+                raw_json = request.files['quiz_file'].read().decode('utf-8')
+            except (UnicodeDecodeError, OSError):
+                flash('The JSON file must be valid UTF-8 text')
+                return render_template('import_quiz.html')
+
+        try:
+            payload = normalize_quiz_payload(json.loads(raw_json))
+        except json.JSONDecodeError:
+            flash('Invalid JSON syntax')
+            return render_template('import_quiz.html')
+        except ValueError as e:
+            flash(str(e))
+            return render_template('import_quiz.html')
+
+        if request.form.get('confirm') == '1':
+            try:
+                quizzes_col = get_collections()[1]
+                quizzes_col.insert_one(quiz_document(payload, current_user.id))
+                flash(f'Quiz "{payload["title"]}" imported successfully!')
+                return redirect(url_for('quizzes'))
+            except Exception as e:
+                flash('Quiz import failed – please try again')
+                print(f'DB Error: {e}')
+                return render_template('import_quiz.html', payload=payload,
+                                       quiz_json=json.dumps(payload))
+
+        return render_template('import_quiz.html', payload=payload,
+                               quiz_json=json.dumps(payload))
+
+    return render_template('import_quiz.html')
+
+@app.route('/export_quiz/<quiz_id>')
+@login_required
+def export_quiz(quiz_id):
+    _, quizzes_col, _ = get_collections()
+    try:
+        quiz = quizzes_col.find_one({'_id': ObjectId(quiz_id)})
+    except Exception:
+        flash('Invalid quiz ID')
+        return redirect(url_for('quizzes'))
+    if not quiz:
+        flash('Quiz not found')
+        return redirect(url_for('quizzes'))
+    if current_user.role != 'master' or str(quiz.get('createdBy')) != current_user.id:
+        flash('Access denied')
+        return redirect(url_for('quizzes'))
+
+    payload = {
+        'title': quiz.get('title', ''),
+        'subject': quiz.get('subject', ''),
+        'duration_minutes': quiz_duration_minutes(quiz),
+        'questions': []
+    }
+    for question in quiz.get('questions', []):
+        exported = {
+            'type': question.get('type', ''),
+            'text': question.get('text', ''),
+            'answer': question.get('answer', ''),
+            'points': question.get('points', 1),
+            'time_limit_seconds': question_time_limit(question)
+        }
+        if exported['type'] == 'mcq':
+            exported['options'] = question.get('options', [])
+        payload['questions'].append(exported)
+
+    response = app.response_class(
+        json.dumps(payload, indent=2),
+        mimetype='application/json'
+    )
+    response.headers['Content-Disposition'] = 'attachment; filename="quiz.json"'
+    return response
 
 @app.route('/quizzes')
 @login_required
@@ -988,7 +1139,8 @@ def take_quiz(quiz_id):
         flash('Quiz not found')
         return redirect(url_for('quizzes'))
 
-    quiz['duration_seconds'] = int(quiz['duration']) * 60
+    quiz['duration'] = quiz_duration_minutes(quiz)
+    quiz['duration_seconds'] = quiz_duration_minutes(quiz) * 60
     quiz['_id'] = str(quiz['_id'])
     return render_template('take_quiz.html', quiz=quiz)
 
@@ -1168,8 +1320,8 @@ def edit_quiz(quiz_id):
         title = request.form.get('title', '').strip()
         subject = request.form.get('subject', '').strip()
         try:
-            duration = int(request.form.get('duration', 0))
-        except ValueError:
+            duration = int(request.form.get('duration_minutes', request.form.get('duration', 0)))
+        except (TypeError, ValueError):
             flash('Invalid duration')
             return render_template('edit_quiz.html', quiz=quiz)
 
@@ -1177,7 +1329,7 @@ def edit_quiz(quiz_id):
             flash('Please fill title, subject, and valid duration')
             return render_template('edit_quiz.html', quiz=quiz)
 
-        questions = []
+        raw_questions = []
         for i in range(1, 51):
             q_text = request.form.get(f'q_text_{i}', '').strip()
             if not q_text:
@@ -1187,19 +1339,18 @@ def edit_quiz(quiz_id):
             q_answer = request.form.get(f'q_answer_{i}', '').strip()
             try:
                 q_points = int(request.form.get(f'q_points_{i}', 1))
-            except ValueError:
+            except (TypeError, ValueError):
                 q_points = 1
-            if q_points < 1:
-                q_points = 1
-
-            if q_type == 'tf':
-                q_answer = q_answer.upper()
-
+            try:
+                q_time = int(request.form.get(f'q_time_{i}', 30))
+            except (TypeError, ValueError):
+                q_time = 30
             q = {
                 'type': q_type,
                 'text': q_text,
                 'answer': q_answer,
-                'points': q_points
+                'points': q_points,
+                'time_limit_seconds': q_time
             }
 
             if q_type == 'mcq':
@@ -1208,25 +1359,21 @@ def edit_quiz(quiz_id):
                     opt = request.form.get(f'option_{i}_{j}', '').strip()
                     if opt:
                         options.append(opt)
-                if len(options) < 2:
-                    flash(f'MCQ Question {i} needs at least 2 options')
-                    return render_template('edit_quiz.html', quiz=quiz)
                 q['options'] = options
-            
-            questions.append(q)
-
-        if len(questions) == 0:
-            flash('Add at least one question')
-            return render_template('edit_quiz.html', quiz=quiz)
+            raw_questions.append(q)
 
         try:
+            payload = normalize_quiz_payload({
+                'title': title,
+                'subject': subject,
+                'duration_minutes': duration,
+                'questions': raw_questions
+            })
             quizzes_col.update_one(
                 {'_id': ObjectId(quiz_id)},
                 {'$set': {
-                    'title': title,
-                    'subject': subject,
-                    'duration': duration,
-                    'questions': questions,
+                    **payload,
+                    'duration': payload['duration_minutes'],
                     'date': datetime.now()
                 }}
             )

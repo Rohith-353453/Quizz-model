@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Quiz JSON - FLUX</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .import-page { min-height: 100vh; background: var(--bg-primary); padding: 40px 24px 80px; }
+        .import-container { max-width: 900px; margin: 0 auto; }
+        .import-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 32px; }
+        .back-link { color: var(--text-secondary); text-decoration: none; }
+        .import-card h1 { margin: 24px 0 8px; }
+        .import-card p { color: var(--text-muted); }
+        .flash-message { background: rgba(255, 68, 68, 0.1); border: 1px solid rgba(255, 68, 68, 0.3); color: var(--error); padding: 14px 16px; border-radius: var(--radius-md); margin: 20px 0; }
+        .import-card input[type=file], .import-card textarea { width: 100%; box-sizing: border-box; margin: 16px 0; padding: 14px; background: var(--bg-tertiary); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-primary); }
+        .import-card textarea { min-height: 220px; font-family: monospace; }
+        .button-row { display: flex; gap: 12px; flex-wrap: wrap; }
+        .button { display: inline-block; padding: 13px 20px; border: 0; border-radius: var(--radius-sm); cursor: pointer; text-decoration: none; font-weight: 600; }
+        .button.primary { background: var(--accent); color: var(--text-on-accent); }
+        .button.secondary { background: transparent; border: 1px solid var(--border-subtle); color: var(--text-secondary); }
+        .preview { margin-top: 24px; padding: 20px; border: 1px solid rgba(191, 255, 0, 0.3); border-radius: var(--radius-md); background: rgba(191, 255, 0, 0.06); }
+        .preview strong { color: var(--accent); }
+    </style>
+</head>
+<body>
+    <div class="import-page">
+        <div class="import-container">
+            <a class="back-link" href="{{ url_for('dashboard') }}"><- Back to Dashboard</a>
+            <div class="import-card">
+                <h1>Create Quiz with JSON</h1>
+                <p>Upload a JSON file matching the FLUX quiz contract. The file is validated before anything is saved.</p>
+
+                {% with messages = get_flashed_messages() %}
+                {% for message in messages %}
+                <div class="flash-message">{{ message }}</div>
+                {% endfor %}
+                {% endwith %}
+
+                {% if payload %}
+                <div class="preview">
+                    <p><strong>Validation: Passed</strong></p>
+                    <p>Quiz: {{ payload.title }}</p>
+                    <p>Subject: {{ payload.subject }}</p>
+                    <p>Duration: {{ payload.duration_minutes }} minutes</p>
+                    <p>Questions: {{ payload.questions|length }}</p>
+                    <form method="POST">
+                        <input type="hidden" name="quiz_json" value="{{ quiz_json|e }}">
+                        <input type="hidden" name="confirm" value="1">
+                        <div class="button-row">
+                            <button class="button primary" type="submit">Create Quiz</button>
+                            <a class="button secondary" href="{{ url_for('import_quiz') }}">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+                {% else %}
+                <form method="POST" enctype="multipart/form-data">
+                    <label for="quiz_file">Upload JSON file</label>
+                    <input id="quiz_file" type="file" name="quiz_file" accept=".json,application/json">
+                    <p>Or paste JSON directly:</p>
+                    <textarea name="quiz_json" placeholder='{"title":"Python Basics","subject":"Python","duration_minutes":30,"questions":[...]}'></textarea>
+                    <button class="button primary" type="submit">Validate and Preview</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

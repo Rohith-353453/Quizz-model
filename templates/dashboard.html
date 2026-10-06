@@ -594,6 +594,13 @@
                     <div class="action-title">Leaderboard</div>
                     <div class="action-desc">See top performers across all quizzes</div>
                 </a>
+                <a href="{{ url_for('import_quiz') }}" class="action-card">
+                    <div class="action-icon info">
+                        <i class="fas fa-file-import"></i>
+                    </div>
+                    <div class="action-title">Create Quiz with JSON</div>
+                    <div class="action-desc">Upload, validate, preview, and create a quiz from a JSON file</div>
+                </a>
             </div>
 
             {% if user.role == 'master' %}
@@ -616,9 +623,9 @@
                                 required>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Duration (seconds)</label>
-                            <input type="number" name="duration" id="quizDuration" class="form-input" min="1"
-                                placeholder="e.g. 300" required oninput="updateTimerInfo()">
+                            <label class="form-label">Duration (minutes)</label>
+                            <input type="number" name="duration_minutes" id="quizDuration" class="form-input" min="1"
+                                placeholder="e.g. 30" required oninput="updateTimerInfo()">
                         </div>
                     </div>
 
@@ -630,7 +637,7 @@
                         </div>
                         <div class="timer-info-grid">
                             <div class="timer-info-item">
-                                <span class="timer-info-label">Total Duration</span>
+                                <span class="timer-info-label">Total Duration (minutes)</span>
                                 <span class="timer-info-value" id="totalDurationDisplay">0s</span>
                             </div>
                             <div class="timer-info-item">
@@ -638,7 +645,7 @@
                                 <span class="timer-info-value" id="questionCountDisplay">1</span>
                             </div>
                             <div class="timer-info-item">
-                                <span class="timer-info-label">Time Per Question</span>
+                                <span class="timer-info-label">Average Time Per Question</span>
                                 <span class="timer-info-value" id="timePerQuestionDisplay">0s</span>
                             </div>
                         </div>
@@ -680,6 +687,11 @@
                                             <label class="form-label">Points</label>
                                             <input type="number" name="q_points_1" class="form-input" value="1" min="1"
                                                 max="10">
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Time Limit (seconds)</label>
+                                            <input type="number" name="q_time_1" class="form-input" value="30" min="1"
+                                                required>
                                         </div>
                                     </div>
                                     <div id="options_1" class="options-group">
@@ -731,7 +743,7 @@
     <script>
         let questionCount = 1;
 
-        // Format seconds into display (just seconds)
+        // Format seconds into a compact display.
         function formatTime(totalSeconds) {
             return `${Math.floor(totalSeconds)}s`;
         }
@@ -746,7 +758,8 @@
 
             if (!durationInput || !timerInfoSection) return;
 
-            const totalSeconds = parseFloat(durationInput.value) || 0;
+            const durationMinutes = parseFloat(durationInput.value) || 0;
+            const totalSeconds = durationMinutes * 60;
             const questionCards = document.querySelectorAll('.question-card');
             const numQuestions = questionCards.length;
 
@@ -755,7 +768,7 @@
 
                 const secondsPerQuestion = totalSeconds / numQuestions;
 
-                totalDurationDisplay.textContent = formatTime(totalSeconds);
+                totalDurationDisplay.textContent = `${durationMinutes}m`;
                 questionCountDisplay.textContent = numQuestions;
                 timePerQuestionDisplay.textContent = formatTime(secondsPerQuestion);
             } else {
@@ -774,9 +787,34 @@
         }
 
         function addQuestion() {
-            if (questionCount >= 50) {
-                alert('Maximum 50 questions allowed.');
+            const existingCards = document.querySelectorAll('.question-card');
+            if (existingCards.length >= 50) {
+                alert('Maximum limit of 50 questions reached.');
                 return;
+            }
+            const currentCard = document.querySelector(`.question-card[data-qnum="${questionCount}"]`);
+            if (currentCard) {
+                const invalidField = Array.from(currentCard.querySelectorAll('input, select, textarea'))
+                    .find(field => !field.disabled && !field.checkValidity());
+                if (invalidField) {
+                    invalidField.reportValidity();
+                    return;
+                }
+                const type = currentCard.querySelector('select').value;
+                if (type === 'mcq') {
+                    const options = Array.from(currentCard.querySelectorAll('input[name^="option_"]'))
+                        .map(input => input.value.trim())
+                        .filter(Boolean);
+                    const answer = currentCard.querySelector('input[name^="q_answer_"]').value.trim();
+                    if (options.length < 2) {
+                        alert(`Question ${questionCount}: add at least 2 MCQ options.`);
+                        return;
+                    }
+                    if (!options.includes(answer)) {
+                        alert(`Question ${questionCount}: the correct answer must match an MCQ option.`);
+                        return;
+                    }
+                }
             }
             questionCount++;
             const container = document.getElementById('questions-container');
@@ -811,6 +849,10 @@
                         <div class="form-group">
                             <label class="form-label">Points</label>
                             <input type="number" name="q_points_${questionCount}" class="form-input" value="1" min="1" max="10">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Time Limit (seconds)</label>
+                            <input type="number" name="q_time_${questionCount}" class="form-input" value="30" min="1" required>
                         </div>
                     </div>
                     <div id="options_${questionCount}" class="options-group">
