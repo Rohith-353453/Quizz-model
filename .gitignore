@@ -1,19 +1,42 @@
-# Environment variables
+# Environment and secrets
 .env
+.env.*
+!.env.example
 
-# Python cache
+# Python cache and tooling
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Virtual environments
+# Virtual environments and packaging
 venv/
 .venv/
+env/
+build/
+dist/
+*.egg-info/
 
-# VS Code (optional but recommended)
+# Logs and local runtime files
+*.log
+instance/
+
+# IDE and editor files
 .vscode/
+.idea/
+*.swp
+*.swo
 
 # OS files
 .DS_Store
 Thumbs.db
+
+# Deployment metadata for other providers
+.vercel/
+
+# Local test and scratch files
+*.local
+*.tmp

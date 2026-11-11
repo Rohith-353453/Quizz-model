@@ -779,6 +779,11 @@ def register():
 def dashboard():
     return render_template('dashboard.html', user=current_user)
 
+@app.route('/docs')
+@login_required
+def user_docs():
+    return render_template('user_docs.html', user=current_user)
+
 @app.route('/create_quiz', methods=['GET', 'POST'])
 @login_required
 def create_quiz():
@@ -1411,8 +1416,8 @@ def logout():
     return redirect(url_for('login'))
 
 # =====================================================================
-# RUN WITH SOCKETIO (gevent backend)
+# RUN WITH SOCKETIO (eventlet backend)
 # =====================================================================
 if __name__ == '__main__':
-    print("[FLUX] Starting server with gevent backend...")
+    print("[FLUX] Starting server with eventlet backend...")
     socketio.run(app, debug=False, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))

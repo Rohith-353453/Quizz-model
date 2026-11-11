@@ -1,28 +1,60 @@
-# Flux - Quiz Application
+# FLUX Quiz Platform
 
-A fun and interactive quiz web application named **Flux**. Test your knowledge across various topics with timed questions, multiple choices, and instant scoring!
+FLUX is a Flask-based quiz and exam platform for Flux Labs. Masters create timed quizzes, launch live sessions, review analytics, and monitor leaderboards. Students browse available quizzes, submit timed attempts, review results, and view podium standings.
 
-This app is built to provide an engaging quiz experience with a clean, modern UI. Deployed on Vercel for fast access worldwide.
+Production domain: **https://fluxlabs.apestree.xyz**
 
-## Live Demo
+## Stack
 
-Check out the live app: [https://flabss.vercel.app](https://flabss.vercel.app)  
-(Or your actual Vercel URL, e.g., flux-9ssjrdgds-rohiths-projects-fc237cf6.vercel.app)
+- Python 3.11
+- Flask, Flask-Login, Flask-SocketIO, and Eventlet
+- MongoDB via PyMongo
+- Jinja templates with the shared stylesheet in `static/styles.css`
+- Render web service deployment
 
-## Features
+## Local development
 
-- Multiple quiz categories/topics (add your own if customized)
-- Timed questions for added challenge
-- Multiple-choice answers
-- Real-time score tracking
-- Results summary at the end
-- Responsive design – works great on mobile and desktop
-- Smooth animations and modern UI
+1. Create a virtual environment and install dependencies:
 
-## Tech Stack
+   ```powershell
+   py -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
+   ```
 
-- Frontend: Next.js / React / Vite (update based on your actual framework)
-- Styling: Tailwind CSS / CSS Modules / plain CSS (update accordingly)
-- State Management: React hooks / Context API / Zustand / etc.
-- Deployment: Vercel
-- No backend required (fully client-side, or add if you use one)
+2. Copy `.env.example` to `.env` and set a real `SECRET_KEY` and `MONGO_URI`. Never commit `.env`.
+
+3. Start the app:
+
+   ```powershell
+   python app.py
+   ```
+
+The health endpoint is available at `/health`.
+
+## Render deployment
+
+`render.yaml` is the source of truth for the Render Blueprint:
+
+- Build: `pip install -r requirements.txt`
+- Start: Gunicorn with one Eventlet worker for Socket.IO support
+- Health check: `/health`
+- Required Render environment variables: `MONGO_URI` and the generated `SECRET_KEY`
+
+Render should manage secrets in the service Environment settings. Use a managed MongoDB connection with network access restricted to the required sources, and keep `SECRET_KEY` stable between deploys so existing sessions remain valid.
+
+## User documentation
+
+Signed-in users can open **User Guide** from the dashboard or visit `/docs`. The guide covers:
+
+- Master and Student capabilities
+- Manual quiz creation
+- JSON quiz import
+- The 1–50 question and question-type rules
+- The exact JSON shape accepted by the importer
+
+## Repository hygiene
+
+The repository ignores environment files, Python caches, virtual environments, build output, logs, IDE metadata, and stale Vercel deployment metadata. The old Vercel configuration was removed because this application is deployed on Render.
+
+If a secret has ever been committed, rotate it first. Removing it from the latest commit is not enough; use `git filter-repo` or BFG only after confirming that rewriting shared history is acceptable.
