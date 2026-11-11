@@ -514,6 +514,10 @@
                     <i class="fas fa-trophy"></i>
                     Leaderboard
                 </a>
+                <a href="{{ url_for('user_docs') }}" class="nav-link">
+                    <i class="fas fa-book-open"></i>
+                    User Guide
+                </a>
             </div>
 
             <a href="{{ url_for('logout') }}" class="logout-btn">
@@ -600,6 +604,13 @@
                     </div>
                     <div class="action-title">Create Quiz with JSON</div>
                     <div class="action-desc">Upload, validate, preview, and create a quiz from a JSON file</div>
+                </a>
+                <a href="{{ url_for('user_docs') }}" class="action-card">
+                    <div class="action-icon mint">
+                        <i class="fas fa-book-open"></i>
+                    </div>
+                    <div class="action-title">User Guide</div>
+                    <div class="action-desc">Learn how Masters create quizzes and how Students take them</div>
                 </a>
             </div>
 

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Guide - FLUX</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .docs-page {
+            min-height: 100vh;
+            background: var(--bg-primary);
+            padding: 40px 24px 80px;
+        }
+
+        .docs-container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .docs-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .back-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .back-link:hover {
+            color: var(--accent);
+        }
+
+        .eyebrow {
+            color: var(--accent);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .docs-header h1 {
+            margin-bottom: 12px;
+        }
+
+        .docs-header p {
+            max-width: 680px;
+            color: var(--text-secondary);
+            font-size: 1.05rem;
+        }
+
+        .docs-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 20px;
+        }
+
+        .docs-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+        }
+
+        .docs-card.featured {
+            border-color: var(--border-accent);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .docs-card.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .docs-card h2,
+        .docs-card h3 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .docs-card h2 i,
+        .docs-card h3 i {
+            color: var(--accent);
+        }
+
+        .docs-card p,
+        .docs-card li {
+            color: var(--text-secondary);
+        }
+
+        .docs-card ul,
+        .docs-card ol {
+            padding-left: 22px;
+            margin: 0;
+        }
+
+        .docs-card li + li {
+            margin-top: 10px;
+        }
+
+        .steps {
+            counter-reset: docs-step;
+            list-style: none;
+            padding-left: 0 !important;
+        }
+
+        .steps li {
+            counter-increment: docs-step;
+            display: grid;
+            grid-template-columns: 32px 1fr;
+            gap: 12px;
+            align-items: start;
+        }
+
+        .steps li::before {
+            content: counter(docs-step);
+            width: 28px;
+            height: 28px;
+            display: grid;
+            place-items: center;
+            background: var(--accent);
+            color: var(--text-on-accent);
+            border-radius: 50%;
+            font-weight: 800;
+        }
+
+        .code-block {
+            margin-top: 18px;
+            padding: 20px;
+            overflow-x: auto;
+            background: #080808;
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            color: #e7f7c1;
+            font: 0.86rem/1.6 'SFMono-Regular', Consolas, monospace;
+            white-space: pre;
+        }
+
+        .rules {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px 28px;
+        }
+
+        .rule {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .rule i {
+            color: var(--accent);
+            margin-top: 4px;
+        }
+
+        .docs-footer {
+            margin-top: 32px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        @media (max-width: 760px) {
+            .docs-header {
+                flex-direction: column;
+            }
+
+            .docs-grid,
+            .rules {
+                grid-template-columns: 1fr;
+            }
+
+            .docs-card.full-width {
+                grid-column: auto;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="docs-page">
+        <div class="docs-container">
+            <header class="docs-header">
+                <div>
+                    <div class="eyebrow">Flux Labs · {{ user.role|capitalize }} guide</div>
+                    <h1>How to use FLUX</h1>
+                    <p>FLUX is the quiz and exam platform for creating timed assessments, taking quizzes, and reviewing performance. This guide covers the workflow for the <strong>{{ user.role|capitalize }}</strong> account you are signed in with.</p>
+                </div>
+                <a class="back-link" href="{{ url_for('dashboard') }}"><i class="fas fa-arrow-left"></i> Back to dashboard</a>
+            </header>
+
+            <div class="docs-grid">
+                {% if user.role == 'master' %}
+                <section class="docs-card featured">
+                    <h2><i class="fas fa-crown"></i> Master capabilities</h2>
+                    <ul>
+                        <li>Create quizzes manually or import them from JSON.</li>
+                        <li>Instantiate live quiz sessions for students.</li>
+                        <li>Edit and delete quizzes from <strong>My Quizzes</strong>.</li>
+                        <li>View analytics for student attempts and performance.</li>
+                        <li>Review leaderboards and live arena standings.</li>
+                    </ul>
+                </section>
+
+                <section class="docs-card">
+                    <h2><i class="fas fa-graduation-cap"></i> Student capabilities</h2>
+                    <ul>
+                        <li>Browse available quizzes.</li>
+                        <li>Take quizzes with the configured timer.</li>
+                        <li>Review results and personal performance.</li>
+                        <li>View podium and leaderboard results.</li>
+                    </ul>
+                </section>
+
+                <section class="docs-card full-width">
+                    <h2><i class="fas fa-wand-magic-sparkles"></i> Create a quiz</h2>
+                    <ol class="steps">
+                        <li>Sign in with a Master account.</li>
+                        <li>Choose <strong>Create New Quiz</strong> on the dashboard and enter the title, subject, and total duration.</li>
+                        <li>Add the first question, choose its type, enter the answer, points, and time limit, then add more questions as needed.</li>
+                        <li>Select <strong>Create Quiz</strong> to save it to your quiz list.</li>
+                    </ol>
+                </section>
+
+                <section class="docs-card full-width">
+                    <h2><i class="fas fa-file-code"></i> Create quickly with JSON</h2>
+                    <p>Prepare your questions in an LLM or editor, then open <strong>Create Quiz with JSON</strong> from the dashboard. Paste the JSON or upload a <code>.json</code> file, choose <strong>Validate and Preview</strong>, review the summary, and confirm creation.</p>
+                    <div class="code-block">{
+  "title": "Python Basics",
+  "subject": "Python Programming",
+  "duration_minutes": 30,
+  "questions": [
+    {
+      "type": "mcq",
+      "text": "Which keyword is used to define a function in Python?",
+      "answer": "def",
+      "points": 1,
+      "time_limit_seconds": 30,
+      "options": ["function", "define", "def", "fun"]
+    },
+    {
+      "type": "tf",
+      "text": "Python is a case-sensitive programming language.",
+      "answer": "TRUE",
+      "points": 1,
+      "time_limit_seconds": 30
+    },
+    {
+      "type": "short",
+      "text": "What is the file extension used for Python files?",
+      "answer": ".py",
+      "points": 2,
+      "time_limit_seconds": 45
+    }
+  ]
+}</div>
+                </section>
+                {% else %}
+                <section class="docs-card featured full-width">
+                    <h2><i class="fas fa-graduation-cap"></i> Your Student workflow</h2>
+                    <ol class="steps">
+                        <li>Open <strong>Browse Quizzes</strong> from the dashboard.</li>
+                        <li>Select a quiz and read its subject, duration, and question count.</li>
+                        <li>Start the quiz and answer each question before its timer expires.</li>
+                        <li>Submit your answers to see your score, review results, and compare your performance on the leaderboard or podium.</li>
+                    </ol>
+                </section>
+                {% endif %}
+
+                <section class="docs-card full-width">
+                    <h2><i class="fas fa-shield-halved"></i> Quiz JSON rules</h2>
+                    <div class="rules">
+                        <div class="rule"><i class="fas fa-check"></i><span>Required fields: <strong>title</strong>, <strong>subject</strong>, <strong>duration_minutes</strong>, and <strong>questions</strong>.</span></div>
+                        <div class="rule"><i class="fas fa-check"></i><span>Questions must contain between 1 and 50 items.</span></div>
+                        <div class="rule"><i class="fas fa-check"></i><span>Allowed types are <strong>mcq</strong>, <strong>tf</strong>, and <strong>short</strong>.</span></div>
+                        <div class="rule"><i class="fas fa-check"></i><span>Every question needs <strong>type</strong>, <strong>text</strong>, <strong>answer</strong>, <strong>points</strong>, and <strong>time_limit_seconds</strong>.</span></div>
+                        <div class="rule"><i class="fas fa-check"></i><span>MCQs need at least two options, and the answer must exactly match one option.</span></div>
+                        <div class="rule"><i class="fas fa-check"></i><span>True/false answers must be written as <strong>TRUE</strong> or <strong>FALSE</strong>.</span></div>
+                        <div class="rule"><i class="fas fa-check"></i><span>Use <strong>duration_minutes</strong> for the full quiz and <strong>time_limit_seconds</strong> per question.</span></div>
+                        <div class="rule"><i class="fas fa-check"></i><span>Send only valid JSON: no Markdown fences, comments, or extra text.</span></div>
+                    </div>
+                </section>
+            </div>
+
+            <p class="docs-footer">FLUX · Flux Labs · fluxlabs.apestree.xyz</p>
+        </div>
+    </main>
+</body>
+
+</html>
